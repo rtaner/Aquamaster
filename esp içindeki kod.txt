@@ -1,0 +1,213 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include "RTClib.h"
+#include <ArduinoJson.h>
+#include "time.h"
+
+// --- GÜVENLİK BİLGİLERİ ---
+const char* ssid = "YOUR_WIFI_SSID"; 
+const char* password = "YOUR_WIFI_PASSWORD";
+String supabaseUrl = "YOUR_SUPABASE_URL"; 
+String supabaseKey = "YOUR_SUPABASE_KEY"; 
+// ------------------------------------
+
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 3 * 3600; 
+const int   daylightOffset_sec = 0;   
+
+RTC_DS3231 rtc;
+
+const int POMPA_1 = 16;
+const int POMPA_2 = 17;
+const int POMPA_3 = 18;
+const int POMPA_4 = 19;
+
+// --- OFFLINE HAFIZA (CACHE) YAPISI ---
+struct HafizaGorev {
+  int pump_id;
+  int hour;
+  int minute;
+  int duration;
+};
+HafizaGorev gunlukProgramlar[20]; // Maksimum 20 görev hafızada tutulabilir
+int hafizadakiGorevSayisi = 0;
+
+// Her pompanın aynı dakika içinde birden fazla çalışmasını engelleyen bağımsız sayaçlar (0 kullanılmaz, 1-2-3-4 için)
+int sonCalisanDakika[5] = {-1, -1, -1, -1, -1}; 
+
+unsigned long sonİnternetKontrol = 0;
+unsigned long sonGorevKontrol = 0;
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  pinMode(POMPA_1, OUTPUT); pinMode(POMPA_2, OUTPUT); pinMode(POMPA_3, OUTPUT); pinMode(POMPA_4, OUTPUT);
+  digitalWrite(POMPA_1, LOW); digitalWrite(POMPA_2, LOW); digitalWrite(POMPA_3, LOW); digitalWrite(POMPA_4, LOW);
+
+  if (!rtc.begin()) {
+    Serial.println("RTC modulu bulunamadi!");
+    while (1); 
+  }
+
+  Serial.print("\nWiFi'ye baglaniliyor: ");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi Baglantisi Tamam!");
+
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo)) {
+    rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec));
+    Serial.println(">>> BASARILI: Saat guncellendi! <<<");
+  }
+}
+
+void goreviPasifYap(int gorevID) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String endpoint = supabaseUrl + "/rest/v1/schedules?id=eq." + String(gorevID);
+    http.begin(endpoint);
+    http.addHeader("apikey", supabaseKey);
+    http.addHeader("Authorization", "Bearer " + supabaseKey);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Prefer", "return=minimal");
+    http.PATCH("{\"is_active\": false}");
+    http.end();
+  }
+}
+
+void motorCalistir(int motorNo, int saniye) {
+  int hedefPin = -1;
+  if (motorNo == 1) hedefPin = POMPA_1;
+  else if (motorNo == 2) hedefPin = POMPA_2;
+  else if (motorNo == 3) hedefPin = POMPA_3;
+  else if (motorNo == 4) hedefPin = POMPA_4;
+
+  if (hedefPin != -1) {
+    Serial.print("\n>>> "); 
+    Serial.print(motorNo); Serial.print(". POMPA "); 
+    Serial.print(saniye); Serial.println(" SN CALISIYOR... <<<");
+    
+    digitalWrite(hedefPin, HIGH); 
+    delay(saniye * 1000);         
+    digitalWrite(hedefPin, LOW);  
+    
+    Serial.println(">>> ISLEM TAMAM! <<<\n");
+  }
+}
+
+void logEkle(int pumpId, int durationSeconds) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String endpoint = supabaseUrl + "/rest/v1/dosing_logs";
+    http.begin(endpoint);
+    http.addHeader("apikey", supabaseKey);
+    http.addHeader("Authorization", "Bearer " + supabaseKey);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Prefer", "return=minimal");
+    String body = "{\"pump_id\":" + String(pumpId) + ",\"duration_seconds\":" + String(durationSeconds) + ",\"ml_amount\":" + String(durationSeconds) + ",\"mode\":\"Zamanlanmış\"}";
+    http.POST(body);
+    http.end();
+  }
+}
+
+void kalpatisiGonder() {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String endpoint = supabaseUrl + "/rest/v1/device_status?id=eq.1";
+    http.begin(endpoint);
+    http.addHeader("apikey", supabaseKey);
+    http.addHeader("Authorization", "Bearer " + supabaseKey);
+    http.addHeader("Content-Type", "application/json");
+    http.PATCH("{\"last_seen\":\"now()\"}");
+    http.end();
+  }
+}
+
+void loop() {
+  DateTime now = rtc.now(); 
+
+  // --- 1. AŞAMA: İNTERNET SENKRONİZASYONU VE KALP ATIŞI (Her 10 Saniyede Bir) ---
+  if (millis() - sonİnternetKontrol > 10000) {
+    sonİnternetKontrol = millis();
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      kalpatisiGonder(); // Canlılık sinyalini Supabase'e gönder
+
+      HTTPClient http;
+      String endpoint = supabaseUrl + "/rest/v1/schedules?select=*&is_active=eq.true";
+      http.begin(endpoint);
+      http.addHeader("apikey", supabaseKey);
+      http.addHeader("Authorization", "Bearer " + supabaseKey);
+      
+      int httpResponseCode = http.GET();
+      if (httpResponseCode == 200) {
+        String payload = http.getString();
+        DynamicJsonDocument doc(2048);
+        DeserializationError error = deserializeJson(doc, payload);
+        
+        if (!error) {
+          int geciciGorevSayisi = 0;
+          HafizaGorev geciciHafiza[20];
+
+          for (JsonObject item : doc.as<JsonArray>()) {
+            int id = item["id"];
+            int pump_id = item["pump_id"];
+            int duration = item["duration_seconds"];
+            bool is_one_time = item["is_one_time"];
+            
+            // Eğer manuel anlık tetikleme ise anında yap ve veritabanından sil!
+            if (is_one_time == true) {
+              Serial.println("\n[ANLIK GOREV] Arayuzden manuel tetikleme geldi!");
+              motorCalistir(pump_id, duration);
+              goreviPasifYap(id); 
+            } 
+            // Eğer programlı görev ise, saati geldiğinde yapmak üzere HAFIZAYA AL
+            else {
+              String run_time = item["run_time"].as<String>(); 
+              geciciHafiza[geciciGorevSayisi].pump_id = pump_id;
+              geciciHafiza[geciciGorevSayisi].hour = run_time.substring(0, 2).toInt();
+              geciciHafiza[geciciGorevSayisi].minute = run_time.substring(3, 5).toInt();
+              geciciHafiza[geciciGorevSayisi].duration = duration;
+              geciciGorevSayisi++;
+            }
+          }
+          
+          // İnternetten çekilen programlı görevleri ESP32'nin ana hafızasına aktar
+          hafizadakiGorevSayisi = geciciGorevSayisi;
+          for(int i = 0; i < geciciGorevSayisi; i++) {
+            gunlukProgramlar[i] = geciciHafiza[i];
+          }
+        }
+      }
+      http.end();
+    } else {
+      Serial.println("[UYARI] WiFi Baglantisi Koptu! Offline (Cevrimdisi) mod devrede.");
+    }
+  }
+
+  // --- 2. AŞAMA: OFFLINE HAFIZA KONTROLÜ VE MOTOR TETİKLEME (Her Saniye) ---
+  if (millis() - sonGorevKontrol > 1000) {
+    sonGorevKontrol = millis();
+    
+    // ESP32 kendi hafızasındaki listeyi sürekli kontrol eder (İnternet olsa da olmasa da)
+    for(int i = 0; i < hafizadakiGorevSayisi; i++) {
+      int pId = gunlukProgramlar[i].pump_id;
+      
+      if(now.hour() == gunlukProgramlar[i].hour && now.minute() == gunlukProgramlar[i].minute) {
+        // Bu motor bu dakika içinde henüz çalışmadıysa ateşle!
+        if(sonCalisanDakika[pId] != now.minute()) {
+          Serial.println("\n[OTOMATIK PROGRAM] Hafizadaki gorev calistiriliyor!");
+          motorCalistir(pId, gunlukProgramlar[i].duration);
+          logEkle(pId, gunlukProgramlar[i].duration); // Otomatik çalıştırma log kaydını Supabase'e ekle
+          sonCalisanDakika[pId] = now.minute(); 
+        }
+      }
+    }
+  }
+}
