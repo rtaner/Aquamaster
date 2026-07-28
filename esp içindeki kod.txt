@@ -4,6 +4,7 @@
 #include "RTClib.h"
 #include <ArduinoJson.h>
 #include "time.h"
+#include <WebServer.h>
 
 // --- GÜVENLİK BİLGİLERİ ---
 const char* ssid = "YOUR_WIFI_SSID"; 
@@ -17,11 +18,16 @@ const long  gmtOffset_sec = 3 * 3600;
 const int   daylightOffset_sec = 0;   
 
 RTC_DS3231 rtc;
+WebServer server(80); // Lokal Anlık Bas-Tut Hortum Doldurma için WebSunucusu
 
 const int POMPA_1 = 16;
 const int POMPA_2 = 17;
 const int POMPA_3 = 18;
 const int POMPA_4 = 19;
+
+// Hortum Havasını Alma (Priming) Güvenlik ve Canlılık Takibi (Watchdog)
+unsigned long primeLastHeartbeat[5] = {0, 0, 0, 0, 0};
+bool pumpPrimingActive[5] = {false, false, false, false, false};
 
 // --- OFFLINE HAFIZA (CACHE) YAPISI ---
 struct HafizaGorev {
@@ -29,6 +35,10 @@ struct HafizaGorev {
   int hour;
   int minute;
   int duration;
+  char schedule_type[12]; // "daily", "weekly", "interval"
+  bool days_of_week[8];   // Index 1..7 (1: Pzt, 2: Sal, ..., 7: Pzr)
+  int interval_days;
+  uint32_t start_timestamp; // UNIX timestamp for interval calculation
 };
 HafizaGorev gunlukProgramlar[20]; // Maksimum 20 görev hafızada tutulabilir
 int hafizadakiGorevSayisi = 0;
@@ -38,6 +48,38 @@ int sonCalisanDakika[5] = {-1, -1, -1, -1, -1};
 
 unsigned long sonİnternetKontrol = 0;
 unsigned long sonGorevKontrol = 0;
+
+void handlePrime() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!server.hasArg("pump") || !server.hasArg("state")) {
+    server.send(400, "text/plain", "Eksik parametre");
+    return;
+  }
+
+  int pump = server.arg("pump").toInt();
+  String state = server.arg("state");
+
+  int pin = -1;
+  if (pump == 1) pin = POMPA_1;
+  else if (pump == 2) pin = POMPA_2;
+  else if (pump == 3) pin = POMPA_3;
+  else if (pump == 4) pin = POMPA_4;
+
+  if (pin != -1) {
+    if (state == "on") {
+      digitalWrite(pin, HIGH);
+      pumpPrimingActive[pump] = true;
+      primeLastHeartbeat[pump] = millis();
+      server.send(200, "text/plain", "PRIMING_ON");
+    } else {
+      digitalWrite(pin, LOW);
+      pumpPrimingActive[pump] = false;
+      server.send(200, "text/plain", "PRIMING_OFF");
+    }
+  } else {
+    server.send(400, "text/plain", "Gecersiz pompa");
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -58,6 +100,11 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("\nWiFi Baglantisi Tamam!");
+  Serial.print("Lokal IP Adresi: "); Serial.println(WiFi.localIP());
+
+  server.on("/prime", handlePrime);
+  server.begin();
+  Serial.println("Lokal WebServer Baslatildi (Port 80)");
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
@@ -124,13 +171,40 @@ void kalpatisiGonder() {
     http.addHeader("apikey", supabaseKey);
     http.addHeader("Authorization", "Bearer " + supabaseKey);
     http.addHeader("Content-Type", "application/json");
-    http.PATCH("{\"last_seen\":\"now()\"}");
+    String localIP = WiFi.localIP().toString();
+    String body = "{\"last_seen\":\"now()\",\"ip_address\":\"" + localIP + "\"}";
+    int httpCode = http.PATCH(body);
+    
+    // Eğer Supabase'de ip_address sütunu yoksa ve PATCH 400 hatası verirse, yedek olarak sadece last_seen gönder!
+    if (httpCode != 200 && httpCode != 204 && httpCode != 201) {
+      HTTPClient http2;
+      http2.begin(endpoint);
+      http2.addHeader("apikey", supabaseKey);
+      http2.addHeader("Authorization", "Bearer " + supabaseKey);
+      http2.addHeader("Content-Type", "application/json");
+      http2.PATCH("{\"last_seen\":\"now()\"}");
+      http2.end();
+    }
     http.end();
   }
 }
 
 void loop() {
   DateTime now = rtc.now(); 
+  server.handleClient(); // Lokal HTTP İsteklerini (Bas-Tut Doldurma) Dinle
+
+  // --- GÜVENLİK KİLİDİ (WATCHDOG TIMER) ---
+  // Hortum doldurma sırasında Wi-Fi koparsa veya 1.5 sn sinyal gelmezse motoru anında kapat!
+  for (int p = 1; p <= 4; p++) {
+    if (pumpPrimingActive[p]) {
+      if (millis() - primeLastHeartbeat[p] > 1500) {
+        int pin = (p == 1) ? POMPA_1 : (p == 2) ? POMPA_2 : (p == 3) ? POMPA_3 : POMPA_4;
+        digitalWrite(pin, LOW);
+        pumpPrimingActive[p] = false;
+        Serial.print("[GUVENLIK] Sinyal koptugu icin "); Serial.print(p); Serial.println(". Pompa kapatildi!");
+      }
+    }
+  } 
 
   // --- 1. AŞAMA: İNTERNET SENKRONİZASYONU VE KALP ATIŞI (Her 10 Saniyede Bir) ---
   if (millis() - sonİnternetKontrol > 10000) {
@@ -148,7 +222,7 @@ void loop() {
       int httpResponseCode = http.GET();
       if (httpResponseCode == 200) {
         String payload = http.getString();
-        DynamicJsonDocument doc(2048);
+        DynamicJsonDocument doc(4096);
         DeserializationError error = deserializeJson(doc, payload);
         
         if (!error) {
@@ -174,6 +248,34 @@ void loop() {
               geciciHafiza[geciciGorevSayisi].hour = run_time.substring(0, 2).toInt();
               geciciHafiza[geciciGorevSayisi].minute = run_time.substring(3, 5).toInt();
               geciciHafiza[geciciGorevSayisi].duration = duration;
+
+              // Esnek Zamanlama Alanları
+              String stype = item["schedule_type"] | "daily";
+              strncpy(geciciHafiza[geciciGorevSayisi].schedule_type, stype.c_str(), sizeof(geciciHafiza[geciciGorevSayisi].schedule_type));
+
+              for(int d = 1; d <= 7; d++) geciciHafiza[geciciGorevSayisi].days_of_week[d] = false;
+              if (item.containsKey("days_of_week") && !item["days_of_week"].isNull()) {
+                JsonArray days = item["days_of_week"];
+                for(int d : days) {
+                  if(d >= 1 && d <= 7) geciciHafiza[geciciGorevSayisi].days_of_week[d] = true;
+                }
+              } else {
+                for(int d = 1; d <= 7; d++) geciciHafiza[geciciGorevSayisi].days_of_week[d] = true;
+              }
+
+              geciciHafiza[geciciGorevSayisi].interval_days = item["interval_days"] | 1;
+
+              if (item.containsKey("start_date") && !item["start_date"].isNull()) {
+                String sDate = item["start_date"].as<String>();
+                int yr = sDate.substring(0, 4).toInt();
+                int mo = sDate.substring(5, 7).toInt();
+                int dy = sDate.substring(8, 10).toInt();
+                DateTime dt(yr, mo, dy, 0, 0, 0);
+                geciciHafiza[geciciGorevSayisi].start_timestamp = dt.unixtime();
+              } else {
+                geciciHafiza[geciciGorevSayisi].start_timestamp = now.unixtime();
+              }
+
               geciciGorevSayisi++;
             }
           }
@@ -200,12 +302,42 @@ void loop() {
       int pId = gunlukProgramlar[i].pump_id;
       
       if(now.hour() == gunlukProgramlar[i].hour && now.minute() == gunlukProgramlar[i].minute) {
-        // Bu motor bu dakika içinde henüz çalışmadıysa ateşle!
+        // Bu motor bu dakika içinde henüz çalışmadıysa zamanlama kuralını denetle!
         if(sonCalisanDakika[pId] != now.minute()) {
-          Serial.println("\n[OTOMATIK PROGRAM] Hafizadaki gorev calistiriliyor!");
-          motorCalistir(pId, gunlukProgramlar[i].duration);
-          logEkle(pId, gunlukProgramlar[i].duration); // Otomatik çalıştırma log kaydını Supabase'e ekle
-          sonCalisanDakika[pId] = now.minute(); 
+          bool calismaliMi = false;
+          String stype = String(gunlukProgramlar[i].schedule_type);
+
+          if (stype == "weekly") {
+            int bugunNo = now.dayOfTheWeek();
+            if (bugunNo == 0) bugunNo = 7; // Pazar = 7 (1: Pzt ... 7: Pzr)
+            if (gunlukProgramlar[i].days_of_week[bugunNo]) {
+              calismaliMi = true;
+            }
+          } else if (stype == "interval") {
+            int interval = gunlukProgramlar[i].interval_days;
+            if (interval <= 1) {
+              calismaliMi = true;
+            } else {
+              uint32_t simdiUnix = now.unixtime();
+              uint32_t baslangicUnix = gunlukProgramlar[i].start_timestamp;
+              if (simdiUnix >= baslangicUnix) {
+                long gunFarki = (simdiUnix - baslangicUnix) / 86400;
+                if (gunFarki % interval == 0) {
+                  calismaliMi = true;
+                }
+              }
+            }
+          } else {
+            // "daily"
+            calismaliMi = true;
+          }
+
+          if (calismaliMi) {
+            Serial.println("\n[OTOMATIK PROGRAM] Hafizadaki gorev calistiriliyor!");
+            motorCalistir(pId, gunlukProgramlar[i].duration);
+            logEkle(pId, gunlukProgramlar[i].duration); // Otomatik çalıştırma log kaydını Supabase'e ekle
+            sonCalisanDakika[pId] = now.minute();
+          }
         }
       }
     }
