@@ -5,155 +5,121 @@ import { supabase } from "../lib/supabase";
 import { 
   Droplets, 
   Clock, 
-  Zap, 
-  CheckCircle2, 
-  AlertCircle, 
   CalendarClock, 
-  Power, 
-  Trash2, 
-  Plus, 
-  Gauge, 
   FlaskConical, 
-  Save, 
-  Play, 
-  Info,
-  ChevronDown,
-  Check,
-  Tag,
-  History,
-  X,
-  RotateCcw,
-  Filter,
-  Lock,
-  Circle
+  CheckCircle2, 
+  AlertCircle,
+  ShieldCheck,
+  Power
 } from "lucide-react";
+import { PumpSetting, DosingLog, ActiveDosingState, ScheduleItem } from "@/types/aquamaster";
+import GlobalHeader from "./components/GlobalHeader";
+import ManualPumpCard from "./components/ManualPumpCard";
+import DosingConfirmModal from "./components/DosingConfirmModal";
+import CalibrationWizard from "./components/CalibrationWizard";
+import PumpSettingsModal from "./components/PumpSettingsModal";
+import SchedulerTab from "./components/SchedulerTab";
+import DosingLogsTab from "./components/DosingLogsTab";
+import { FileText } from "lucide-react";
+
+const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
+  1: { pump_id: 1, rate: 1.0, label: "Gübre A", color: "cyan", icon: "Droplets", max_limit_ml: 50, container_total_ml: 1000, container_current_ml: 850 },
+  2: { pump_id: 2, rate: 1.0, label: "Gübre B", color: "emerald", icon: "FlaskConical", max_limit_ml: 50, container_total_ml: 1000, container_current_ml: 900 },
+  3: { pump_id: 3, rate: 1.0, label: "pH Düşürücü", color: "rose", icon: "Zap", max_limit_ml: 25, container_total_ml: 500, container_current_ml: 400 },
+  4: { pump_id: 4, rate: 1.0, label: "Cal-Mag", color: "purple", icon: "Sparkles", max_limit_ml: 50, container_total_ml: 1000, container_current_ml: 950 },
+};
 
 export default function AquaMaster() {
-  const [activeTab, setActiveTab] = useState<"manual" | "scheduler" | "calibration">("manual");
+  const [activeTab, setActiveTab] = useState<"manual" | "scheduler" | "calibration" | "logs">("manual");
   const [loading, setLoading] = useState<number | null>(null);
   const [calibLoading, setCalibLoading] = useState<number | null>(null);
   const [calibSaving, setCalibSaving] = useState<number | null>(null);
-  const [labelSaving, setLabelSaving] = useState<number | null>(null);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
-  // ESP32 Çevrimiçi/Çevrimdışı durumu
+  // ESP32 Telemetri Durumları
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
-
-  // Log Modal ve Verileri
-  const [isLogModalOpen, setIsLogModalOpen] = useState<boolean>(false);
-  const [dosingLogs, setDosingLogs] = useState<any[]>([]);
-  const [logsLoading, setLogsLoading] = useState<boolean>(false);
-  const [logPumpFilter, setLogPumpFilter] = useState<number>(0);
-
-  // Hangi pompaların 10 saniyelik testinin çalıştırıldığının takibi (Güvenlik Kilit Durumu)
-  const [testedPumps, setTestedPumps] = useState<{ [key: number]: boolean }>({
-    1: false,
-    2: false,
-    3: false,
-    4: false,
-  });
-
-  // 4 Pompa için kalibrasyon oranları (ml/sn) ve sıvı/gübre etiketleri
-  const [pumpSettings, setPumpSettings] = useState<{ [key: number]: { rate: number; label: string } }>({
-    1: { rate: 1.0, label: "Gübre A" },
-    2: { rate: 1.0, label: "Gübre B" },
-    3: { rate: 1.0, label: "pH Düşürücü" },
-    4: { rate: 1.0, label: "Cal-Mag" },
-  });
-
-  // Manuel tetikleme için 4 pompanın ml durumu
-  const [manualMl, setManualMl] = useState<{ [key: number]: number }>({ 1: 15, 2: 15, 3: 15, 4: 15 });
-
-  // Kalibrasyon sekmesindeki ölçülen ml değerleri ve etiket girdileri
-  const [calibMeasuredMl, setCalibMeasuredMl] = useState<{ [key: number]: string }>({
-    1: "",
-    2: "",
-    3: "",
-    4: "",
-  });
-  const [calibLabels, setCalibLabels] = useState<{ [key: number]: string }>({
-    1: "Gübre A",
-    2: "Gübre B",
-    3: "pH Düşürücü",
-    4: "Cal-Mag",
-  });
-
-  // Zamanlayıcı formu için durumlar
-  const [schedPump, setSchedPump] = useState<number>(1);
-  const [schedTime, setSchedTime] = useState<string>("08:00");
-  const [schedMl, setSchedMl] = useState<number>(15);
-  const [schedules, setSchedules] = useState<any[]>([]);
-
-  // Esnek Zamanlama Modları (Her Gün / Haftalık Günler / Aralıklı)
-  const [schedType, setSchedType] = useState<"daily" | "weekly" | "interval">("daily");
-  const [selectedDays, setSelectedDays] = useState<number[]>(() => {
-    const day = new Date().getDay();
-    return [day === 0 ? 7 : day]; // Varsayılan olarak sadece içinde bulunulan gün seçili (1: Pzt ... 7: Pzr)
-  });
-  const [intervalDays, setIntervalDays] = useState<number>(2);
-  const [startDate, setStartDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
-
-  const toggleDay = (dayNum: number) => {
-    if (selectedDays.includes(dayNum)) {
-      if (selectedDays.length > 1) {
-        setSelectedDays(selectedDays.filter((d) => d !== dayNum));
-      }
-    } else {
-      setSelectedDays([...selectedDays, dayNum].sort((a, b) => a - b));
-    }
-  };
-
-  // Canlı Manuel Dozajlama Geri Sayımı Takibi
-  const [activeDosing, setActiveDosing] = useState<{
-    [pumpId: number]: {
-      remainingSeconds: number;
-      totalSeconds: number;
-      dosingDuration: number;
-      delaySeconds: number;
-      targetMl: number;
-    };
-  }>({});
+  const [deviceIp, setDeviceIp] = useState<string | null>(null);
   const [lastSeenTime, setLastSeenTime] = useState<number | null>(null);
 
-  // Lokal IP ve Hortum Doldurma (Priming) Durumları
-  const [deviceIp, setDeviceIp] = useState<string | null>(null);
+  // Pompalar, Loglar ve Zamanlayıcılar (SSR Uyumlu)
+  const [pumpSettings, setPumpSettings] = useState<{ [key: number]: PumpSetting }>(DEFAULT_PUMP_SETTINGS);
+  const [dosingLogs, setDosingLogs] = useState<DosingLog[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [logsLoading, setLogsLoading] = useState<boolean>(false);
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+
+  // Aktif Dozlama Geri Sayımı ve Tamamlanan Dozaj State'leri
+  const [activeDosing, setActiveDosing] = useState<{ [pumpId: number]: ActiveDosingState }>({});
+  const [completedDosing, setCompletedDosing] = useState<{ [pumpId: number]: { targetMl: number; durationSeconds: number; label: string } }>({});
+
+  // Modallar
+  const [isLogModalOpen, setIsLogModalOpen] = useState<boolean>(false);
+  const [confirmModalPumpId, setConfirmModalPumpId] = useState<number | null>(null);
+  const [confirmModalMl, setConfirmModalMl] = useState<number>(15);
+  const [editingPumpId, setEditingPumpId] = useState<number | null>(null);
+
+  // Hortum Havası Alma (Priming)
   const [primingPump, setPrimingPump] = useState<number | null>(null);
   const primeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const startPriming = (pumpId: number) => {
-    if (!deviceIp) {
-      bildirimGoster("ESP32 Lokal IP adresi henüz alınamadı. Cihazın açık ve aynı Wi-Fi ağında olduğundan emin olun.", "error");
-      return;
-    }
-    setPrimingPump(pumpId);
+  // Mounted Ref
+  const isMountedRef = useRef<boolean>(true);
 
-    const sendSignal = (state: "on" | "off") => {
-      fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=${state}`, { mode: "no-cors" }).catch(() => {});
+  const bildirimGoster = (text: string, type: "success" | "error") => {
+    if (isMountedRef.current) {
+      setMessage({ text, type });
+      setTimeout(() => {
+        if (isMountedRef.current) setMessage(null);
+      }, 5000);
+    }
+  };
+
+  // 1. Hydration tamamlandıktan sonra localStorage'dan yükle
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("aquamaster_pump_settings");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setPumpSettings((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch (e) {}
+    setIsLoaded(true);
+  }, []);
+
+  // 2. Yalnızca yükleme tamamlandıktan sonra localStorage'a kaydet
+  useEffect(() => {
+    if (!isLoaded) return;
+    try {
+      localStorage.setItem("aquamaster_pump_settings", JSON.stringify(pumpSettings));
+    } catch (e) {}
+  }, [pumpSettings, isLoaded]);
+
+  // Sayfa Yüklendiğinde ve Aralıklarla Verileri Çek
+  useEffect(() => {
+    isMountedRef.current = true;
+    setCurrentTime(new Date());
+
+    fetchPumpSettings();
+    fetchSchedules();
+    fetchDeviceStatus();
+    fetchDosingLogs();
+
+    const timer = setInterval(() => {
+      if (isMountedRef.current) setCurrentTime(new Date());
+    }, 1000);
+    const statusTimer = setInterval(() => {
+      if (isMountedRef.current) fetchDeviceStatus();
+    }, 5000);
+
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(timer);
+      clearInterval(statusTimer);
     };
+  }, []);
 
-    // İlk anlık açma sinyali (30 ms)
-    sendSignal("on");
-
-    // Her 500 ms'de bir sinyali tazele (Güvenlik kilidini canlı tut)
-    if (primeIntervalRef.current) clearInterval(primeIntervalRef.current);
-    primeIntervalRef.current = setInterval(() => {
-      sendSignal("on");
-    }, 500);
-  };
-
-  const stopPriming = (pumpId: number) => {
-    if (primeIntervalRef.current) {
-      clearInterval(primeIntervalRef.current);
-      primeIntervalRef.current = null;
-    }
-    setPrimingPump(null);
-    if (deviceIp) {
-      fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=off`, { mode: "no-cors" }).catch(() => {});
-    }
-  };
-
-  // Canlı Geri Sayım Zamanlayıcı Döngüsü (Her saniye 1 sn eksiltir)
+  // Canlı Geri Sayım Zamanlayıcısı
   useEffect(() => {
     const activePumpIds = Object.keys(activeDosing).map(Number);
     if (activePumpIds.length === 0) return;
@@ -173,8 +139,21 @@ export default function AquaMaster() {
               };
               hasChanges = true;
             } else {
+              const finished = next[pumpId];
               delete next[pumpId];
               hasChanges = true;
+
+              // Dozajlama bittiğinde başarı özet kartını doldur!
+              if (finished) {
+                setCompletedDosing((prevComp) => ({
+                  ...prevComp,
+                  [pumpId]: {
+                    targetMl: finished.targetMl,
+                    durationSeconds: finished.dosingDuration,
+                    label: pumpSettings[pumpId]?.label || `${pumpId}. Pompa`,
+                  },
+                }));
+              }
             }
           }
         });
@@ -184,156 +163,137 @@ export default function AquaMaster() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [activeDosing]);
+  }, [activeDosing, pumpSettings]);
 
-  // Özel Modern Açılır Menü (Custom Dropdown) Durumu
-  const [isPumpDropdownOpen, setIsPumpDropdownOpen] = useState<boolean>(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Dışarı tıklanınca açılır menüyü kapat
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsPumpDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Sayfa yüklendiğinde ayarları, programları ve cihaz durumunu çek
-  useEffect(() => {
-    fetchPumpSettings();
-    fetchSchedules();
-    fetchDeviceStatus();
-
-    // Her 1 saniyede bir dijital saati güncelle
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-
-    // Her 5 saniyede bir ESP32 canlılık durumunu kontrol et
-    const statusTimer = setInterval(() => fetchDeviceStatus(), 5000);
-
-    return () => {
-      clearInterval(timer);
-      clearInterval(statusTimer);
-    };
-  }, []);
-
-  // ESP32 Canlılık Durumunu Supabase'den Çek
+  // ESP32 Canlılık Durumu Çekme
   const fetchDeviceStatus = async () => {
-    const { data } = await supabase
-      .from("device_status")
-      .select("*")
-      .eq("id", 1)
-      .single();
+    try {
+      const { data } = await supabase
+        .from("device_status")
+        .select("*")
+        .eq("id", 1)
+        .single();
 
-    if (data && data.last_seen) {
-      const lastSeen = new Date(data.last_seen).getTime();
-      setLastSeenTime(lastSeen);
-      if (data.ip_address) {
-        setDeviceIp(data.ip_address);
+      if (!isMountedRef.current) return;
+
+      if (data && data.last_seen) {
+        const lastSeen = new Date(data.last_seen).getTime();
+        setLastSeenTime(lastSeen);
+        if (data.ip_address) setDeviceIp(data.ip_address);
+        const now = new Date().getTime();
+        const diffSec = (now - lastSeen) / 1000;
+        setIsOnline(diffSec < 35);
+      } else {
+        setIsOnline(false);
       }
-      const now = new Date().getTime();
-      const diffSec = (now - lastSeen) / 1000;
-      setIsOnline(diffSec < 35);
-    } else {
-      setIsOnline(false);
+    } catch (e) {
+      if (isMountedRef.current) setIsOnline(false);
     }
   };
 
-  // Supabase'den Dozaj Loglarını Çek
+  // Pompa Ayarlarını Supabase'den Çekme ve Birleştirme
+  const fetchPumpSettings = async () => {
+    const { data } = await supabase.from("pump_settings").select("*");
+    if (!isMountedRef.current) return;
+
+    if (data && data.length > 0) {
+      setPumpSettings((prev) => {
+        const updated = { ...prev };
+        data.forEach((item: any) => {
+          const id = item.pump_id;
+          updated[id] = {
+            ...updated[id],
+            pump_id: id,
+            rate: item.ml_per_second || updated[id]?.rate || 1.0,
+            label: item.label && item.label.trim() !== "" ? item.label : updated[id]?.label || `${id}. Pompa`,
+          };
+        });
+        return updated;
+      });
+    }
+  };
+
+  // Dozaj Loglarını Çekme
   const fetchDosingLogs = async () => {
-    setLogsLoading(true);
-    let query = supabase
+    if (isMountedRef.current) setLogsLoading(true);
+    const { data } = await supabase
       .from("dosing_logs")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(60);
 
-    if (logPumpFilter > 0) {
-      query = query.eq("pump_id", logPumpFilter);
-    }
-
-    const { data } = await query;
+    if (!isMountedRef.current) return;
     if (data) setDosingLogs(data);
     setLogsLoading(false);
   };
 
-  // Filtre değiştiğinde logları yeniden çek
-  useEffect(() => {
-    if (isLogModalOpen) {
-      fetchDosingLogs();
-    }
-  }, [logPumpFilter, isLogModalOpen]);
-
-  // Supabase'den pompa kalibrasyon oranlarını ve etiketlerini çek
-  const fetchPumpSettings = async () => {
-    const { data } = await supabase.from("pump_settings").select("*");
-    if (data && data.length > 0) {
-      const settingsMap: { [key: number]: { rate: number; label: string } } = {
-        1: { rate: 1.0, label: "Gübre A" },
-        2: { rate: 1.0, label: "Gübre B" },
-        3: { rate: 1.0, label: "pH Düşürücü" },
-        4: { rate: 1.0, label: "Cal-Mag" },
-      };
-      const labelMap: { [key: number]: string } = {
-        1: "Gübre A",
-        2: "Gübre B",
-        3: "pH Düşürücü",
-        4: "Cal-Mag",
-      };
-
-      data.forEach((item: { pump_id: number; ml_per_second: number; label?: string }) => {
-        const itemLabel = item.label && item.label.trim() !== "" ? item.label : `${item.pump_id}. Pompa`;
-        settingsMap[item.pump_id] = {
-          rate: item.ml_per_second || 1.0,
-          label: itemLabel,
-        };
-        labelMap[item.pump_id] = itemLabel;
-      });
-
-      setPumpSettings(settingsMap);
-      setCalibLabels(labelMap);
-    }
-  };
-
-  // Supabase'den kayıtlı zamanlayıcı programlarını çek
+  // Zamanlayıcı Programlarını Çekme
   const fetchSchedules = async () => {
     const { data } = await supabase
       .from("schedules")
       .select("*")
       .eq("is_one_time", false)
       .order("run_time", { ascending: true });
+
+    if (!isMountedRef.current) return;
     if (data) setSchedules(data);
   };
 
-  const bildirimGoster = (text: string, type: "success" | "error") => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage(null), 5000);
+  // Hortum Havası Alma (Priming)
+  const startPriming = (pumpId: number) => {
+    if (!deviceIp) {
+      bildirimGoster("ESP32 Lokal IP adresi henüz alınamadı. Cihazın açık olduğundan emin olun.", "error");
+      return;
+    }
+    setPrimingPump(pumpId);
+
+    const sendSignal = (state: "on" | "off") => {
+      fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=${state}`, { mode: "no-cors" }).catch(() => {});
+    };
+
+    sendSignal("on");
+    if (primeIntervalRef.current) clearInterval(primeIntervalRef.current);
+    primeIntervalRef.current = setInterval(() => sendSignal("on"), 500);
   };
 
-  // --- MANUEL TETİKLEME (ML ➔ SANİYE HESABI İLE + LOG KAYDI) ---
-  const motorCalistir = async (pumpId: number) => {
+  const stopPriming = (pumpId: number) => {
+    if (primeIntervalRef.current) {
+      clearInterval(primeIntervalRef.current);
+      primeIntervalRef.current = null;
+    }
+    setPrimingPump(null);
+    if (deviceIp) {
+      fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=off`, { mode: "no-cors" }).catch(() => {});
+    }
+  };
+
+  // Manuel Dozaj Tetikleme İsteği (Onay Modalı Açılır)
+  const handleRequestDose = (pumpId: number, targetMl: number) => {
     if (isOnline !== true) {
       bildirimGoster("Cihaz Çevrimdışı! ESP32 bağlı olmadığı için manuel dozlama başlatılamıyor.", "error");
       return;
     }
+    setConfirmModalPumpId(pumpId);
+    setConfirmModalMl(targetMl);
+  };
 
+  // Manuel Dozajlama Onaylandıktan Sonra Tetikleme
+  const handleExecuteDose = async () => {
+    if (!confirmModalPumpId) return;
+    const pumpId = confirmModalPumpId;
+    const targetMl = confirmModalMl;
+    setConfirmModalPumpId(null);
     setLoading(pumpId);
-    const targetMl = manualMl[pumpId] || 1;
-    const rate = pumpSettings[pumpId]?.rate || 1.0;
-    const label = pumpSettings[pumpId]?.label || `${pumpId}. Pompa`;
 
+    const setting = pumpSettings[pumpId] || DEFAULT_PUMP_SETTINGS[pumpId];
+    const rate = setting.rate || 1.0;
     const durationSeconds = Math.max(1, Math.round(targetMl / rate));
 
-    // ESP32 10 saniyelik periyodunda bir sonraki sorgusuna kaç saniye kaldığını hesapla
-    let delaySeconds = 0;
+    let delaySeconds = 5;
     if (isOnline && lastSeenTime) {
       const nowMs = new Date().getTime();
       const elapsedSec = (nowMs - lastSeenTime) / 1000;
       delaySeconds = Math.max(1, Math.ceil(10 - (elapsedSec % 10)));
-    } else {
-      delaySeconds = 5; // Tahmini varsayılan bekleme süresi
     }
 
     const totalCountdown = delaySeconds + durationSeconds;
@@ -342,7 +302,7 @@ export default function AquaMaster() {
     now.setMinutes(now.getMinutes() + 1);
     const hedefSaat = now.toTimeString().split(" ")[0];
 
-    // 1. ESP32 için emir ekle
+    // 1. ESP32 emir ekle
     const { error } = await supabase.from("schedules").insert([
       {
         pump_id: pumpId,
@@ -353,7 +313,7 @@ export default function AquaMaster() {
       },
     ]);
 
-    // 2. Geçmiş Log tablosuna ekle
+    // 2. Log ekle
     await supabase.from("dosing_logs").insert([
       {
         pump_id: pumpId,
@@ -366,7 +326,7 @@ export default function AquaMaster() {
     if (error) {
       bildirimGoster("Hata: " + error.message, "error");
     } else {
-      // 2 Aşamalı Geri Sayım Durumunu Başlat! (İletim Bekleme + Motor Çalışma)
+      // Aktif Dozaj geri sayımını başlat
       setActiveDosing((prev) => ({
         ...prev,
         [pumpId]: {
@@ -378,17 +338,56 @@ export default function AquaMaster() {
         },
       }));
 
-      bildirimGoster(
-        `${pumpId}. Pompa (${label}) komutu iletildi. (~${delaySeconds} sn iletim + ${durationSeconds} sn dozlama).`,
-        "success"
-      );
+      // Şişe seviyesini düşür
+      setPumpSettings((prev) => {
+        const curr = prev[pumpId];
+        if (!curr) return prev;
+        const currentMl = curr.container_current_ml ?? 1000;
+        return {
+          ...prev,
+          [pumpId]: {
+            ...curr,
+            container_current_ml: Math.max(0, currentMl - targetMl),
+          },
+        };
+      });
+
+      // Manuel dozlamada kart içi canlı sayaç (RadialProgress) gösterildiği için üst bildirim kaldırıldı.
+      // Logları tazele
+      fetchDosingLogs();
     }
 
     setLoading(null);
   };
 
-  // --- KALİBRASYON TEST ÇALIŞTIRMASI (TAM 10 SANİYE + KİLİT AÇMA) ---
-  const testCalibrateRun = async (pumpId: number) => {
+  // Global ACİL DURDUR (E-STOP)
+  const handleEmergencyStop = async () => {
+    // 1. Canlı geri sayımı durdur
+    setActiveDosing({});
+
+    // 2. Priming'i kes
+    if (primeIntervalRef.current) {
+      clearInterval(primeIntervalRef.current);
+      primeIntervalRef.current = null;
+    }
+    setPrimingPump(null);
+
+    // 3. ESP32 lokal HTTP sinyali gönder
+    if (deviceIp) {
+      fetch(`http://${deviceIp}/prime?pump=1&state=off`, { mode: "no-cors" }).catch(() => {});
+      fetch(`http://${deviceIp}/prime?pump=2&state=off`, { mode: "no-cors" }).catch(() => {});
+      fetch(`http://${deviceIp}/prime?pump=3&state=off`, { mode: "no-cors" }).catch(() => {});
+      fetch(`http://${deviceIp}/prime?pump=4&state=off`, { mode: "no-cors" }).catch(() => {});
+    }
+
+    // 4. Supabase'deki bekleyen tek seferlik emirleri sil
+    await supabase.from("schedules").delete().eq("is_one_time", true);
+
+    bildirimGoster("🚨 ACİL DURDURMA TETİKLENDİ! Tüm çalışan ve bekleyen pompalar anında durduruldu.", "error");
+  };
+
+  // Kalibrasyon Test Çalıştırması (10s)
+  const handleRunCalibrationTest = async (pumpId: number) => {
     if (isOnline !== true) {
       bildirimGoster("Cihaz Çevrimdışı! ESP32 bağlı olmadığı için kalibrasyon testi başlatılamıyor.", "error");
       return;
@@ -399,7 +398,7 @@ export default function AquaMaster() {
     now.setMinutes(now.getMinutes() + 1);
     const hedefSaat = now.toTimeString().split(" ")[0];
 
-    const { error } = await supabase.from("schedules").insert([
+    await supabase.from("schedules").insert([
       {
         pump_id: pumpId,
         run_time: hedefSaat,
@@ -409,1238 +408,285 @@ export default function AquaMaster() {
       },
     ]);
 
-    if (error) {
-      bildirimGoster("Hata: " + error.message, "error");
-    } else {
-      // Test başarıyla başlatıldı, pompanın veri giriş kilidini aç!
-      setTestedPumps((prev) => ({ ...prev, [pumpId]: true }));
-      bildirimGoster(
-        `${pumpId}. Pompa 10 saniyelik test için başlatıldı. Sıvıyı ölçüp 2. adıma yazabilirsiniz.`,
-        "success"
-      );
-    }
-
+    bildirimGoster(`${pumpId}. Pompa için 10 saniyelik test komutu gönderildi.`, "success");
     setCalibLoading(null);
   };
 
-  // --- SADECE ETİKETİ KAYDETME ---
-  const saveLabelOnly = async (pumpId: number) => {
-    const labelVal = calibLabels[pumpId]?.trim() || `${pumpId}. Pompa`;
-    setLabelSaving(pumpId);
-
-    const currentRate = pumpSettings[pumpId]?.rate || 1.0;
-
-    const { error } = await supabase.from("pump_settings").upsert(
-      [
-        {
-          pump_id: pumpId,
-          ml_per_second: currentRate,
-          label: labelVal,
-        },
-      ],
-      { onConflict: "pump_id" }
-    );
-
-    if (error) {
-      bildirimGoster("Etiket kaydedilemedi: " + error.message, "error");
-    } else {
-      bildirimGoster(`${pumpId}. Pompa etiketi "${labelVal}" olarak güncellendi!`, "success");
-      await fetchPumpSettings();
-    }
-
-    setLabelSaving(null);
-  };
-
-  // --- KALİBRASYON DEĞERİNİ KAYDETME ---
-  const saveCalibration = async (pumpId: number) => {
-    if (!testedPumps[pumpId]) {
-      bildirimGoster("Lütfen önce 10 saniyelik test çalıştırmasını yapın!", "error");
-      return;
-    }
-
-    const rawVal = calibMeasuredMl[pumpId];
-    const measuredMl = parseFloat(rawVal);
-    const labelVal = pumpSettings[pumpId]?.label || `${pumpId}. Pompa`;
-
-    if (isNaN(measuredMl) || measuredMl <= 0) {
-      bildirimGoster("Lütfen geçerli bir mililitre (ml) değeri girin.", "error");
-      return;
-    }
-
+  // Kalibrasyon Hızını Kaydetme
+  const handleSaveCalibrationRate = async (pumpId: number, newRate: number) => {
     setCalibSaving(pumpId);
+    await supabase.from("pump_settings").upsert({
+      pump_id: pumpId,
+      ml_per_second: newRate,
+      label: pumpSettings[pumpId]?.label || `${pumpId}. Pompa`,
+    });
 
-    const mlPerSecond = parseFloat((measuredMl / 10).toFixed(3));
+    setPumpSettings((prev) => ({
+      ...prev,
+      [pumpId]: {
+        ...prev[pumpId],
+        rate: newRate,
+      },
+    }));
 
-    const { error } = await supabase.from("pump_settings").upsert(
-      [
-        {
-          pump_id: pumpId,
-          ml_per_second: mlPerSecond,
-          label: labelVal,
-        },
-      ],
-      { onConflict: "pump_id" }
-    );
-
-    if (error) {
-      bildirimGoster("Kalibrasyon kaydedilemedi: " + error.message, "error");
-    } else {
-      bildirimGoster(
-        `${pumpId}. Pompa (${labelVal}) kalibre edildi: 10 sn'de ${measuredMl} ml ➔ Hız: ${mlPerSecond} ml/sn`,
-        "success"
-      );
-      await fetchPumpSettings();
-    }
-
+    bildirimGoster(`${pumpId}. Pompa yeni akış hızı (${newRate.toFixed(3)} ml/sn) kaydedildi.`, "success");
     setCalibSaving(null);
   };
 
-  const DAYS_TR: { [key: number]: string } = {
-    1: "Pzt",
-    2: "Sal",
-    3: "Çar",
-    4: "Per",
-    5: "Cum",
-    6: "Cmt",
-    7: "Pzr",
+  // Pompa Ayarlarını Güncelleme (Label, Icon, Color, Max Limit, Container Volume)
+  const handleSavePumpSettings = async (updated: PumpSetting) => {
+    await supabase.from("pump_settings").upsert({
+      pump_id: updated.pump_id,
+      ml_per_second: updated.rate,
+      label: updated.label,
+    });
+
+    setPumpSettings((prev) => ({
+      ...prev,
+      [updated.pump_id]: updated,
+    }));
+
+    bildirimGoster(`${updated.label} (Kanal ${updated.pump_id}) ayarları güncellendi.`, "success");
   };
 
-  const getScheduleSummaryText = (sched: any) => {
-    const type = sched.schedule_type || "daily";
-    if (type === "daily" || (Array.isArray(sched.days_of_week) && sched.days_of_week.length === 7)) {
-      return "Her gün";
-    }
-    if (type === "weekly" && Array.isArray(sched.days_of_week)) {
-      const names = sched.days_of_week.map((d: number) => DAYS_TR[d] || d).join(", ");
-      return `Seçili günler (${names})`;
-    }
-    if (type === "interval") {
-      return `${sched.interval_days || 2} günde bir (${sched.start_date || "bugün"} referanslı)`;
-    }
-    return "Programlı";
+  // Şişe Depoyu Doldurma
+  const handleRefillContainer = (pumpId: number) => {
+    setPumpSettings((prev) => {
+      const curr = prev[pumpId];
+      if (!curr) return prev;
+      const totalMl = curr.container_total_ml || 1000;
+      return {
+        ...prev,
+        [pumpId]: {
+          ...curr,
+          container_current_ml: totalMl,
+        },
+      };
+    });
+    bildirimGoster(`${pumpSettings[pumpId]?.label || pumpId} deposu yeniden dolduruldu.`, "success");
   };
 
-  // --- ZAMANLAYICI EKLEME FONKSİYONU ---
-  const programEkle = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const rate = pumpSettings[schedPump]?.rate || 1.0;
-    const label = pumpSettings[schedPump]?.label || `${schedPump}. Pompa`;
-    const durationSeconds = Math.max(1, Math.round(schedMl / rate));
-
-    const newSchedulePayload: any = {
-      pump_id: schedPump,
-      run_time: schedTime.length === 5 ? schedTime + ":00" : schedTime,
-      duration_seconds: durationSeconds,
-      is_active: true,
-      is_one_time: false,
-      schedule_type: schedType,
-      days_of_week: schedType === "weekly" ? selectedDays : (schedType === "daily" ? [1, 2, 3, 4, 5, 6, 7] : null),
-      interval_days: schedType === "interval" ? intervalDays : 1,
-      start_date: schedType === "interval" ? startDate : new Date().toISOString().split("T")[0],
-    };
-
-    const { error } = await supabase.from("schedules").insert([newSchedulePayload]);
-
-    if (error) {
-      bildirimGoster("Hata: " + error.message, "error");
-    } else {
-      bildirimGoster(
-        `Yeni program eklendi! ${schedPump}. Pompa (${label}) ${schedMl} ml (~${durationSeconds} sn)`,
-        "success"
-      );
+  // Zamanlayıcı Programı Ekleme & Silme
+  const handleAddSchedule = async (newSchedule: Partial<ScheduleItem>) => {
+    const { error } = await supabase.from("schedules").insert([newSchedule]);
+    if (error) bildirimGoster("Program ekleme hatası: " + error.message, "error");
+    else {
+      bildirimGoster("Zamanlayıcı programı eklendi.", "success");
       fetchSchedules();
     }
   };
 
-  // --- ZAMANLAYICI SİLME FONKSİYONU ---
-  const programSil = async (id: number) => {
+  const handleDeleteSchedule = async (id: number) => {
     const { error } = await supabase.from("schedules").delete().eq("id", id);
-    if (!error) {
+    if (error) bildirimGoster("Silme hatası: " + error.message, "error");
+    else {
       bildirimGoster("Program silindi.", "success");
       fetchSchedules();
     }
   };
 
-  const totalDosedMlToday = dosingLogs.reduce((acc, curr) => acc + (curr.ml_amount || 0), 0);
+  const handleUpdateSchedule = async (id: number, updatedSchedule: Partial<ScheduleItem>) => {
+    const { error } = await supabase
+      .from("schedules")
+      .update(updatedSchedule)
+      .eq("id", id);
+
+    if (error) {
+      bildirimGoster("Program güncelleme hatası: " + error.message, "error");
+    } else {
+      bildirimGoster("Zamanlayıcı programı güncellendi.", "success");
+      fetchSchedules();
+    }
+  };
+
+  const handleToggleSchedule = async (id: number, currentActiveState: boolean) => {
+    const nextState = !currentActiveState;
+    // Anında akıcı UI tepkisi için yerel state güncellemesi
+    setSchedules((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, is_active: nextState } : item))
+    );
+
+    const { error } = await supabase
+      .from("schedules")
+      .update({ is_active: nextState })
+      .eq("id", id);
+
+    if (error) {
+      bildirimGoster("Durum değiştirme hatası: " + error.message, "error");
+      fetchSchedules();
+    } else {
+      bildirimGoster(
+        `Program ${nextState ? "aktif (etkin)" : "pasif (devre dışı)"} yapıldı.`,
+        "success"
+      );
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500/30 pb-12">
-      {/* Üst Menü (Header) */}
-      <header className="bg-slate-900/80 border-b border-slate-800 p-4 sm:p-6 flex items-center justify-between shadow-lg backdrop-blur-md sticky top-0 z-20">
-        <div className="flex items-center gap-3">
-          <Droplets className="text-cyan-400 w-8 h-8" />
-          <h1 className="text-xl sm:text-2xl font-bold tracking-wide bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-            Aqua Master
-          </h1>
-        </div>
+    <div className="min-h-screen bg-[#060b14] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-slate-950">
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* GLOBAL HEADER BAR */}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <GlobalHeader
+        isOnline={isOnline}
+        deviceIp={deviceIp}
+        lastSeenTime={lastSeenTime}
+        currentTime={currentTime}
+        onOpenLogs={() => setActiveTab("logs")}
+        onEmergencyStop={handleEmergencyStop}
+      />
 
-        {/* Header Sağ Bölüm: LOGLAR İKONU & Canlı Saat */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              setIsLogModalOpen(true);
-              fetchDosingLogs();
-            }}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-cyan-300 hover:text-cyan-200 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all active:scale-95 shadow-inner"
-            title="Dozaj Geçmişi ve Logları Görüntüle"
-          >
-            <History className="w-4 h-4 text-cyan-400" />
-            <span className="hidden sm:inline">Loglar</span>
-          </button>
-
-          {/* Canlı Akan Dijital Saat & ESP32 Çevrimiçi Simgesi */}
-          {currentTime && (
-            <div
-              className="flex items-center gap-2.5 bg-slate-950 px-3.5 py-2 sm:px-4 rounded-xl border border-slate-800 shadow-inner font-mono text-cyan-400 transition-all cursor-help"
-              title={
-                isOnline === true
-                  ? "ESP32 Cihazı Çevrimiçi (İnternete Bağlı)"
-                  : isOnline === false
-                  ? "ESP32 Cihazı Çevrimdışı (Bağlantı Yok)"
-                  : "Cihaz Durumu Kontrol Ediliyor..."
-              }
-            >
-              <Clock
-                className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-500 ${
-                  isOnline === true
-                    ? "text-emerald-400 animate-pulse drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]"
-                    : isOnline === false
-                    ? "text-red-500 drop-shadow-[0_0_6px_rgba(239,68,68,0.5)]"
-                    : "text-slate-500"
-                }`}
-              />
-              <span className="text-sm sm:text-lg tracking-wider">
-                {currentTime.toLocaleTimeString("tr-TR")}
-              </span>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Sekmeler (Tabs) */}
-      <div className="max-w-6xl mx-auto px-6 mt-6 flex flex-wrap sm:flex-nowrap gap-3">
-        <button
-          onClick={() => setActiveTab("manual")}
-          className={`flex-1 min-w-[130px] py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${
-            activeTab === "manual"
-              ? "bg-cyan-900/40 text-cyan-400 border border-cyan-500/50 shadow-lg shadow-cyan-950/50"
-              : "bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800"
-          }`}
-        >
-          <Power className="w-5 h-5" /> Manuel Kontrol
-        </button>
-
-        <button
-          onClick={() => setActiveTab("scheduler")}
-          className={`flex-1 min-w-[130px] py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${
-            activeTab === "scheduler"
-              ? "bg-cyan-900/40 text-cyan-400 border border-cyan-500/50 shadow-lg shadow-cyan-950/50"
-              : "bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800"
-          }`}
-        >
-          <CalendarClock className="w-5 h-5" /> Zamanlayıcı
-        </button>
-
-        <button
-          onClick={() => setActiveTab("calibration")}
-          className={`flex-1 min-w-[130px] py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${
-            activeTab === "calibration"
-              ? "bg-cyan-900/40 text-cyan-400 border border-cyan-500/50 shadow-lg shadow-cyan-950/50"
-              : "bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800"
-          }`}
-        >
-          <FlaskConical className="w-5 h-5" /> Kalibrasyon & Etiketler
-        </button>
-      </div>
-
-      <main className="max-w-6xl mx-auto p-6 flex flex-col gap-8">
-        {/* Bildirim Ekranı */}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* ANA İÇERİK & TAB GEÇİŞLERİ */}
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* Bildirim Toast Mesajı */}
         {message && (
           <div
-            className={`p-4 rounded-xl flex items-center gap-3 animate-in fade-in border ${
+            className={`p-4 rounded-2xl border text-xs font-semibold flex items-center gap-3 animate-in slide-in-from-top-4 shadow-xl ${
               message.type === "success"
-                ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400"
-                : "bg-red-500/10 border-red-500/50 text-red-400"
+                ? "bg-emerald-950/80 border-emerald-500/50 text-emerald-300"
+                : "bg-red-950/80 border-red-500/50 text-red-300"
             }`}
           >
             {message.type === "success" ? (
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
             ) : (
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
             )}
-            <p className="text-sm font-medium">{message.text}</p>
+            <span>{message.text}</span>
           </div>
         )}
 
-        {/* --- MANUEL KONTROL SEKME İÇERİĞİ (4 POMPA) --- */}
+        {/* Tab Butonları */}
+        <div className="glass-panel p-1.5 rounded-2xl flex items-center justify-between border border-cyan-500/20 max-w-3xl mx-auto">
+          {[
+            { id: "manual", title: "Manuel Dozaj", icon: Droplets },
+            { id: "scheduler", title: "Zamanlayıcı", icon: CalendarClock },
+            { id: "calibration", title: "Kalibrasyon Sihirbazı", icon: FlaskConical },
+            { id: "logs", title: "Dozaj Logları & Analizler", icon: FileText },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-950/50"
+                    : "text-slate-400 hover:text-white hover:bg-slate-900/50"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="truncate">{tab.title}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 1: MANUEL DOZAJ KARTLARI (4 KANAL) */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "manual" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in">
             {[1, 2, 3, 4].map((pumpId) => {
-              const info = pumpSettings[pumpId] || { rate: 1.0, label: `${pumpId}. Pompa` };
-              const currentMl = manualMl[pumpId] || 15;
-              const estSecExact = currentMl / info.rate;
-              const estSecRound = Math.max(1, Math.round(estSecExact));
-
-              const activeInfo = activeDosing[pumpId];
-              const isDosing = !!activeInfo;
-              const isWaiting = isDosing && activeInfo.remainingSeconds > activeInfo.dosingDuration;
-              const waitTimeLeft = isWaiting ? activeInfo.remainingSeconds - activeInfo.dosingDuration : 0;
-              const doseTimeLeft = isDosing ? Math.min(activeInfo.remainingSeconds, activeInfo.dosingDuration) : 0;
-
-              const progressPercent = isDosing
-                ? Math.min(
-                    100,
-                    Math.max(
-                      0,
-                      Math.round(
-                        ((activeInfo.totalSeconds - activeInfo.remainingSeconds) /
-                          activeInfo.totalSeconds) *
-                          100
-                      )
-                    )
-                  )
-                : 0;
+              const setting = pumpSettings[pumpId] || DEFAULT_PUMP_SETTINGS[pumpId];
+              const lastLog = dosingLogs.find((l) => l.pump_id === pumpId);
 
               return (
-                <div
+                <ManualPumpCard
                   key={pumpId}
-                  className={`bg-slate-900 rounded-3xl p-6 border shadow-xl relative overflow-hidden group flex flex-col justify-between transition-all ${
-                    isWaiting
-                      ? "border-amber-500/60 shadow-amber-950/40"
-                      : isDosing
-                      ? "border-emerald-500/60 shadow-emerald-950/40"
-                      : "border-slate-800"
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className="bg-slate-800 p-2 rounded-lg border border-slate-700">
-                          <Droplets
-                            className={`w-5 h-5 ${
-                              isWaiting
-                                ? "text-amber-400 animate-spin"
-                                : isDosing
-                                ? "text-emerald-400 animate-bounce"
-                                : "text-cyan-400"
-                            }`}
-                          />
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold text-slate-200">{pumpId}. Pompa</h3>
-                        </div>
-                      </div>
-                      <span className="bg-slate-950 text-xs px-2.5 py-1 rounded-full text-slate-400 border border-slate-800 font-mono">
-                        CH {pumpId}
-                      </span>
-                    </div>
-
-                    {/* Özel Sıvı/Gübre Etiketi */}
-                    <div className="mb-4">
-                      <span className="inline-flex items-center gap-1.5 bg-cyan-950/60 text-cyan-300 text-xs font-semibold px-3 py-1 rounded-lg border border-cyan-500/30">
-                        <Tag className="w-3 h-3 text-cyan-400" />
-                        {info.label}
-                      </span>
-                    </div>
-
-                    {/* 2 Aşamalı Canlı İlerleme Çubuğu ve Geri Sayım Rozeti */}
-                    {isDosing && (
-                      <div
-                        className={`mb-4 border p-3 rounded-2xl animate-pulse space-y-2 ${
-                          isWaiting
-                            ? "bg-amber-950/80 border-amber-500/50"
-                            : "bg-emerald-950/80 border-emerald-500/50"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between text-xs font-bold">
-                          {isWaiting ? (
-                            <>
-                              <span className="flex items-center gap-1.5 text-amber-300">
-                                <Clock className="w-4 h-4 text-amber-400 animate-spin" /> ESP32'ye İletiliyor...
-                              </span>
-                              <span className="font-mono text-amber-200">
-                                ~{waitTimeLeft} sn
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="flex items-center gap-1.5 text-emerald-300">
-                                <Droplets className="w-4 h-4 text-emerald-400 animate-bounce" /> Dozlanıyor...
-                              </span>
-                              <span className="font-mono text-emerald-200">
-                                {doseTimeLeft} sn
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
-                          <div
-                            className={`h-full transition-all duration-1000 ease-linear rounded-full ${
-                              isWaiting
-                                ? "bg-gradient-to-r from-amber-500 to-yellow-400"
-                                : "bg-gradient-to-r from-emerald-500 to-teal-400"
-                            }`}
-                            style={{ width: `${progressPercent}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Akış Hızı Rozeti */}
-                    <div className="mb-6 flex items-center justify-between bg-slate-950/70 px-3 py-2 rounded-xl border border-slate-800 text-xs">
-                      <span className="text-slate-400 flex items-center gap-1">
-                        <Gauge className="w-3.5 h-3.5 text-cyan-400" /> Hız:
-                      </span>
-                      <span className="font-mono font-semibold text-cyan-300">
-                        {info.rate.toFixed(3)} ml/sn
-                      </span>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                            Miktar (ml)
-                          </label>
-                          <span className="text-xs font-mono text-slate-400" title={`Hassas: ${estSecExact.toFixed(1)} sn`}>
-                            ~{estSecRound} sn
-                          </span>
-                        </div>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="1"
-                          max="1000"
-                          disabled={isDosing}
-                          value={manualMl[pumpId] || ""}
-                          onChange={(e) =>
-                            setManualMl({
-                              ...manualMl,
-                              [pumpId]: parseFloat(e.target.value) || 0,
-                            })
-                          }
-                          className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-cyan-500 transition-colors font-mono disabled:opacity-50"
-                          placeholder="Örn: 30"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => motorCalistir(pumpId)}
-                    disabled={isOnline !== true || isDosing || loading === pumpId || (manualMl[pumpId] || 0) <= 0}
-                    className={`w-full mt-6 py-3 px-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-60 ${
-                      isOnline !== true
-                        ? "bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed"
-                        : isWaiting
-                        ? "bg-amber-900/60 border border-amber-500/50 text-amber-300 cursor-not-allowed"
-                        : isDosing
-                        ? "bg-emerald-900/60 border border-emerald-500/50 text-emerald-300 cursor-not-allowed"
-                        : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white"
-                    }`}
-                  >
-                    {isOnline !== true ? (
-                      <>
-                        <AlertCircle className="w-4 h-4 text-red-400" /> Cihaz Çevrimdışı
-                      </>
-                    ) : isWaiting ? (
-                      <>
-                        <Clock className="w-4 h-4 animate-spin text-amber-400" />
-                        İletiliyor (~{waitTimeLeft} sn)
-                      </>
-                    ) : isDosing ? (
-                      <>
-                        <Clock className="w-4 h-4 animate-spin text-emerald-400" />
-                        Dozlanıyor ({doseTimeLeft} sn)
-                      </>
-                    ) : loading === pumpId ? (
-                      <Clock className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4 fill-current" /> Dozla ({manualMl[pumpId] || 0} ml)
-                      </>
-                    )}
-                  </button>
-                </div>
+                  setting={setting}
+                  lastLog={lastLog}
+                  activeState={activeDosing[pumpId]}
+                  completedState={completedDosing[pumpId]}
+                  isOnline={isOnline}
+                  loading={loading === pumpId}
+                  primingPump={primingPump}
+                  onStartPriming={startPriming}
+                  onStopPriming={stopPriming}
+                  onDoseClick={handleRequestDose}
+                  onOpenSettings={(id) => setEditingPumpId(id)}
+                  onRefillContainer={handleRefillContainer}
+                  onDismissCompletion={(id) =>
+                    setCompletedDosing((prev) => {
+                      const next = { ...prev };
+                      delete next[id];
+                      return next;
+                    })
+                  }
+                />
               );
             })}
           </div>
         )}
 
-        {/* --- ZAMANLAYICI SEKME İÇERİĞİ --- */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 2: ESNEK ZAMANLAYICI PROGRAMLARI */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "scheduler" && (
-          <div className="space-y-8 animate-in fade-in">
-            {/* Yeni Program Ekleme Formu */}
-            <form
-              onSubmit={programEkle}
-              className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl flex flex-col gap-6"
-            >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-cyan-500/10 p-2.5 rounded-xl border border-cyan-500/20 text-cyan-400">
-                    <CalendarClock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-200">Yeni Otomatik Program Oluştur</h3>
-                    <p className="text-xs text-slate-400">Pompanın çalışma zamanını, miktarını ve tekrarlama kuralını ayarlayın.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* 1. ADIM: ZAMANLAMA TÜRÜ (MOD SEÇİMİ) */}
-              <div className="flex flex-col gap-2">
-                <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                  Zamanlama Modu
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSchedType("daily")}
-                    className={`py-3 px-4 rounded-2xl border text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
-                      schedType === "daily"
-                        ? "bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-lg shadow-cyan-950/50"
-                        : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
-                    }`}
-                  >
-                    <Clock className="w-4 h-4 text-cyan-400" /> ☀️ Her Gün
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSchedType("weekly")}
-                    className={`py-3 px-4 rounded-2xl border text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
-                      schedType === "weekly"
-                        ? "bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-lg shadow-cyan-950/50"
-                        : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
-                    }`}
-                  >
-                    <CalendarClock className="w-4 h-4 text-cyan-400" /> 🗓️ Haftalık Gün Seçimi
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSchedType("interval")}
-                    className={`py-3 px-4 rounded-2xl border text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
-                      schedType === "interval"
-                        ? "bg-cyan-500/20 border-cyan-500 text-cyan-300 shadow-lg shadow-cyan-950/50"
-                        : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700"
-                    }`}
-                  >
-                    <RotateCcw className="w-4 h-4 text-cyan-400" /> 🔄 Aralıklı (N Günde Bir)
-                  </button>
-                </div>
-              </div>
-
-              {/* DİNAMİK KOŞULLU GİRDİ ALANLARI */}
-              {schedType === "weekly" && (
-                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3 animate-in fade-in">
-                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                    Dozajlama Yapılacak Günler
-                  </label>
-                  <div className="flex flex-wrap gap-2.5">
-                    {[
-                      { num: 1, name: "Pazartesi" },
-                      { num: 2, name: "Salı" },
-                      { num: 3, name: "Çarşamba" },
-                      { num: 4, name: "Perşembe" },
-                      { num: 5, name: "Cuma" },
-                      { num: 6, name: "Cumartesi" },
-                      { num: 7, name: "Pazar" },
-                    ].map((day) => {
-                      const isSelected = selectedDays.includes(day.num);
-                      const isToday = (new Date().getDay() === 0 ? 7 : new Date().getDay()) === day.num;
-
-                      return (
-                        <button
-                          key={day.num}
-                          type="button"
-                          onClick={() => toggleDay(day.num)}
-                          className={`px-3.5 py-2.5 rounded-2xl text-xs font-semibold border flex items-center gap-2 transition-all active:scale-95 ${
-                            isSelected
-                              ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-lg shadow-emerald-950/50 font-bold"
-                              : "bg-slate-900/80 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                          }`}
-                        >
-                          {/* İkon Indicator: Seçiliyse Dolu Yeşil Onay Dairesi, Seçilmediyse Boş Daire */}
-                          {isSelected ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 fill-emerald-500/30 flex-shrink-0 animate-in zoom-in-50 duration-200" />
-                          ) : (
-                            <Circle className="w-4 h-4 text-slate-600 flex-shrink-0" />
-                          )}
-
-                          <span>{day.name}</span>
-
-                          {/* Bugün Vurgu Rozeti */}
-                          {isToday && (
-                            <span className="text-[10px] bg-cyan-950 text-cyan-400 border border-cyan-800/60 px-1.5 py-0.5 rounded-md font-mono font-medium ml-0.5">
-                              Bugün
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {schedType === "interval" && (
-                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                      Kaç Günde Bir Çalışsın?
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={intervalDays}
-                        onChange={(e) => setIntervalDays(Math.max(1, parseInt(e.target.value) || 1))}
-                        className="bg-slate-900 border border-slate-800 rounded-xl p-3 px-4 text-white focus:outline-none focus:border-cyan-500 font-mono shadow-inner w-full"
-                      />
-                      <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">günde bir</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                      Başlangıç Referans Tarihi
-                    </label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="bg-slate-900 border border-slate-800 rounded-xl p-3 px-4 text-white focus:outline-none focus:border-cyan-500 font-mono shadow-inner w-full"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* GİRDİ FORMU (POMPA, SAAT, MİKTAR & BUTON) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-end">
-                {/* MODERN ÖZEL AÇILIR MENÜ (CUSTOM DROPDOWN) */}
-                <div className="w-full flex flex-col gap-2 relative" ref={dropdownRef}>
-                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                    Motor / Gübre Seçimi
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsPumpDropdownOpen(!isPumpDropdownOpen)}
-                    className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-3 px-4 text-white flex items-center justify-between transition-all focus:outline-none focus:border-cyan-500 shadow-inner group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="bg-cyan-500/10 p-2 rounded-xl border border-cyan-500/20 text-cyan-400">
-                        <Droplets className="w-4 h-4" />
-                      </div>
-                      <div className="flex flex-col text-left">
-                        <span className="font-bold text-sm text-slate-200">
-                          {schedPump}. Pompa • {pumpSettings[schedPump]?.label || "Gübre"}
-                        </span>
-                        <span className="text-xs text-slate-400 font-mono">
-                          CH {schedPump} • {(pumpSettings[schedPump]?.rate || 1.0).toFixed(3)} ml/sn
-                        </span>
-                      </div>
-                    </div>
-                    <ChevronDown
-                      className={`w-5 h-5 text-slate-400 group-hover:text-cyan-400 transition-transform duration-300 ${
-                        isPumpDropdownOpen ? "rotate-180 text-cyan-400" : ""
-                      }`}
-                    />
-                  </button>
-
-                  {/* Popover Açılır Liste */}
-                  {isPumpDropdownOpen && (
-                    <div className="absolute top-[105%] left-0 w-full bg-slate-900/95 border border-slate-700/80 rounded-2xl p-2 shadow-2xl backdrop-blur-xl z-50 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                      {[1, 2, 3, 4].map((pumpId) => {
-                        const info = pumpSettings[pumpId] || { rate: 1.0, label: `${pumpId}. Pompa` };
-                        const isSelected = schedPump === pumpId;
-
-                        return (
-                          <button
-                            key={pumpId}
-                            type="button"
-                            onClick={() => {
-                              setSchedPump(pumpId);
-                              setIsPumpDropdownOpen(false);
-                            }}
-                            className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
-                              isSelected
-                                ? "bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 font-semibold"
-                                : "hover:bg-slate-800/80 text-slate-300 hover:text-white"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`p-2 rounded-lg ${
-                                  isSelected
-                                    ? "bg-cyan-500 text-slate-950 font-bold"
-                                    : "bg-slate-800 text-slate-400"
-                                }`}
-                              >
-                                <Droplets className="w-4 h-4" />
-                              </div>
-                              <div className="flex flex-col text-left">
-                                <span className="text-sm font-semibold flex items-center gap-2">
-                                  {pumpId}. Pompa
-                                  <span className="text-xs text-cyan-400 font-normal">
-                                    ({info.label})
-                                  </span>
-                                </span>
-                                <span className="text-xs text-slate-400 font-mono">
-                                  Akış Hızı: {info.rate.toFixed(3)} ml/sn
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <span className="bg-slate-950 text-[10px] px-2 py-0.5 rounded-full text-slate-400 border border-slate-800 font-mono">
-                                CH {pumpId}
-                              </span>
-                              {isSelected && (
-                                <Check className="w-4 h-4 text-cyan-400" />
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Çalışma Saati Girişi */}
-                <div className="w-full flex flex-col gap-2">
-                  <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                    Çalışma Saati
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={schedTime}
-                    onChange={(e) => setSchedTime(e.target.value)}
-                    className="bg-slate-950 border border-slate-800 rounded-2xl p-3 px-4 text-white focus:outline-none focus:border-cyan-500 font-mono shadow-inner transition-colors"
-                  />
-                </div>
-
-                {/* Miktar Girişi */}
-                <div className="w-full flex flex-col gap-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                      Miktar (ml)
-                    </label>
-                    <span className="text-xs text-slate-400 font-mono">
-                      ~{Math.max(1, Math.round(schedMl / (pumpSettings[schedPump]?.rate || 1.0)))} sn
-                    </span>
-                  </div>
-                  <input
-                    type="number"
-                    required
-                    step="0.5"
-                    min="1"
-                    max="1000"
-                    value={schedMl}
-                    onChange={(e) => setSchedMl(parseFloat(e.target.value) || 1)}
-                    className="bg-slate-950 border border-slate-800 rounded-2xl p-3 px-4 text-white focus:outline-none focus:border-cyan-500 font-mono shadow-inner transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Program Ekle Butonu */}
-              <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white p-3.5 px-6 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-emerald-950/40 mt-2"
-              >
-                <Plus className="w-5 h-5" /> Program Ekle
-              </button>
-            </form>
-
-            {/* Kayıtlı Programlar Listesi */}
-            <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <CalendarClock className="text-cyan-400 w-5 h-5" /> Kayıtlı Otomatik Programlar
-              </h3>
-              {schedules.length === 0 ? (
-                <p className="text-slate-500 text-sm text-center py-4">Henüz kayıtlı bir program bulunmuyor.</p>
-              ) : (
-                <div className="space-y-3">
-                  {schedules.map((sched) => {
-                    const info = pumpSettings[sched.pump_id] || { rate: 1.0, label: `${sched.pump_id}. Pompa` };
-                    const estMl = (sched.duration_seconds * info.rate).toFixed(1);
-                    const summaryText = getScheduleSummaryText(sched);
-
-                    return (
-                      <div
-                        key={sched.id}
-                        className="flex items-center justify-between bg-slate-950 p-4 rounded-xl border border-slate-800 flex-wrap sm:flex-nowrap gap-3"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="bg-slate-900 w-12 h-12 rounded-lg flex items-center justify-center font-bold text-cyan-400 border border-slate-800 flex-shrink-0">
-                            P{sched.pump_id}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-lg font-bold text-slate-200 font-mono">
-                                {sched.run_time.substring(0, 5)}
-                              </p>
-                              <span className="text-xs bg-cyan-950 text-cyan-300 border border-cyan-800/60 px-2 py-0.5 rounded-md font-semibold">
-                                {info.label}
-                              </span>
-                              <span className="text-[11px] bg-slate-900 text-slate-300 border border-slate-800 px-2 py-0.5 rounded-md font-medium">
-                                {summaryText}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-400 mt-1">
-                              Dozajlama:{" "}
-                              <span className="text-emerald-400 font-semibold font-mono">
-                                ~{estMl} ml
-                              </span>{" "}
-                              <span className="text-slate-500">
-                                ({sched.duration_seconds} saniye)
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => programSil(sched.id)}
-                          className="text-slate-500 hover:text-red-400 transition-colors p-2 bg-slate-900 rounded-lg hover:bg-red-500/10 self-end sm:self-center"
-                          title="Sil"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+          <SchedulerTab
+            schedules={schedules}
+            pumpSettings={pumpSettings}
+            onAddSchedule={handleAddSchedule}
+            onDeleteSchedule={handleDeleteSchedule}
+            onToggleSchedule={handleToggleSchedule}
+            onUpdateSchedule={handleUpdateSchedule}
+          />
         )}
 
-        {/* --- KALİBRASYON & ETİKET SEKME İÇERİĞİ (2 AYRI BLOK) --- */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 3: ADIM ADIM KALİBRASYON SİHİRBAZI */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "calibration" && (
-          <div className="space-y-10 animate-in fade-in">
-            {/* 1. BLOK: GÜBRE / SIVI ETİKET AYARLARI */}
-            <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl space-y-6">
-              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-                <div className="bg-cyan-500/10 p-2.5 rounded-xl border border-cyan-500/20 text-cyan-400">
-                  <Tag className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-200">
-                    1. Blok: Sıvı / Gübre Etiket Ayarları
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Pompalara hangi gübrenin bağlı olduğunu buradan tanımlayabilirsiniz (Kalibrasyon gerekmez).
-                  </p>
-                </div>
-              </div>
+          <CalibrationWizard
+            pumpSettings={pumpSettings}
+            isOnline={isOnline}
+            calibLoading={calibLoading}
+            calibSaving={calibSaving}
+            primingPump={primingPump}
+            onStartPriming={startPriming}
+            onStopPriming={stopPriming}
+            onRunTest={handleRunCalibrationTest}
+            onSaveCalibration={handleSaveCalibrationRate}
+          />
+        )}
 
-              {/* 4 Pompa Etiket Kartları */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {[1, 2, 3, 4].map((pumpId) => {
-                  return (
-                    <div
-                      key={pumpId}
-                      className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex flex-col justify-between gap-3 shadow-inner"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm text-slate-300">
-                          {pumpId}. Pompa
-                        </span>
-                        <span className="bg-slate-900 text-[10px] px-2 py-0.5 rounded-full text-slate-400 border border-slate-800 font-mono">
-                          CH {pumpId}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] text-slate-400 font-semibold">
-                          Gübre / Sıvı Adı
-                        </label>
-                        <input
-                          type="text"
-                          value={calibLabels[pumpId] || ""}
-                          onChange={(e) =>
-                            setCalibLabels({
-                              ...calibLabels,
-                              [pumpId]: e.target.value,
-                            })
-                          }
-                          placeholder="Örn: Gübre A"
-                          className="bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-cyan-300 focus:outline-none focus:border-cyan-500 font-medium"
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => saveLabelOnly(pumpId)}
-                        disabled={labelSaving === pumpId}
-                        className="w-full bg-cyan-600/90 hover:bg-cyan-500 text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        {labelSaving === pumpId ? (
-                          <Clock className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <>
-                            <Tag className="w-3.5 h-3.5" /> Etiketi Kaydet
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* 2. BLOK: SIVI AKIŞ HIZI KALİBRASYONU (GÜVENLİK KİLİTLİ 10 SANİYE) */}
-            <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-xl space-y-6">
-              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-                <div className="bg-cyan-500/10 p-2.5 rounded-xl border border-cyan-500/20 text-cyan-400">
-                  <FlaskConical className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-200">
-                    2. Blok: Sıvı Akış Hızı Kalibrasyonu (10 Saniyelik Test)
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Sistem güvenliği için 1. Adımdaki test çalıştırılmadan miktar girişi kilitlidir.
-                  </p>
-                </div>
-              </div>
-
-              {/* Bilgilendirme Kılavuzu Kutu */}
-              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-1">
-                <p className="font-semibold text-cyan-400 flex items-center gap-1">
-                  <Info className="w-4 h-4" /> Kalibrasyon Adımları:
-                </p>
-                <p>1. Hortumun sıvıyla dolu olduğundan emin olun ve <span className="text-cyan-300 font-semibold">10 Sn Test Et</span> butonuna basın.</p>
-                <p>2. Test çalıştırıldıktan sonra kilit açılacaktır. Ölçtüğünüz ml değerini yazın.</p>
-                <p>3. <span className="text-emerald-400 font-semibold">Kalibrasyonu Kaydet</span> butonuna basarak tamamlayın.</p>
-              </div>
-
-              {/* 4 Pompa Kalibrasyon Kartları */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {[1, 2, 3, 4].map((pumpId) => {
-                  const info = pumpSettings[pumpId] || { rate: 1.0, label: `${pumpId}. Pompa` };
-                  const isTested = testedPumps[pumpId];
-                  const rawVal = calibMeasuredMl[pumpId] || "";
-                  const valNum = parseFloat(rawVal);
-                  const calculatedRate =
-                    !isNaN(valNum) && valNum > 0
-                      ? (valNum / 10).toFixed(3)
-                      : null;
-
-                  return (
-                    <div
-                      key={pumpId}
-                      className={`bg-slate-950 rounded-2xl p-5 border flex flex-col justify-between gap-4 shadow-inner transition-all ${
-                        isTested ? "border-cyan-500/40 shadow-cyan-950/30" : "border-slate-800"
-                      }`}
-                    >
-                      <div>
-                        {/* Başlık ve Etiket Rozeti */}
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-bold text-sm text-slate-200">
-                            {pumpId}. Pompa
-                          </h4>
-                          <span className="bg-cyan-950 text-cyan-300 border border-cyan-800/60 px-2 py-0.5 rounded text-[11px] font-medium">
-                            {info.label}
-                          </span>
-                        </div>
-
-                        {/* Güncel Akış Hızı Rozeti */}
-                        <div className="mb-4 bg-slate-900 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                          <span className="text-slate-400 flex items-center gap-1">
-                            <Gauge className="w-3.5 h-3.5 text-cyan-400" /> Mevcut Hız:
-                          </span>
-                          <span className="font-mono text-xs font-bold text-cyan-300">
-                            {info.rate.toFixed(3)} ml/sn
-                          </span>
-                        </div>
-
-                        {/* ADIM 0: HORTUM HAVASINI AL (BASILI TUT) */}
-                        <div className="space-y-1.5 border-b border-slate-800 pb-3 mb-3">
-                          <div className="flex justify-between items-center text-[11px] font-semibold text-slate-400">
-                            <span>0. Adım: Hortum Havasını Al</span>
-                            <span className="text-[10px] text-amber-400 font-mono">Basılı Tut</span>
-                          </div>
-                          <button
-                            type="button"
-                            onMouseDown={() => startPriming(pumpId)}
-                            onMouseUp={() => stopPriming(pumpId)}
-                            onMouseLeave={() => stopPriming(pumpId)}
-                            onTouchStart={() => startPriming(pumpId)}
-                            onTouchEnd={() => stopPriming(pumpId)}
-                            className={`w-full py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all select-none active:scale-95 ${
-                              primingPump === pumpId
-                                ? "bg-amber-500 text-slate-950 border border-amber-400 shadow-lg shadow-amber-950/60 animate-pulse font-bold"
-                                : "bg-slate-900 hover:bg-slate-850 text-slate-300 border border-slate-800"
-                            }`}
-                          >
-                            {primingPump === pumpId ? (
-                              <>
-                                <Droplets className="w-4 h-4 animate-bounce text-slate-950" /> Dolduruluyor...
-                              </>
-                            ) : (
-                              <>
-                                <Droplets className="w-3.5 h-3.5 text-amber-400" /> Hortum Havasını Al (Basılı Tut)
-                              </>
-                            )}
-                          </button>
-                        </div>
-
-                        {/* Adım 1: Test Çalıştır Butonu */}
-                        <div className="space-y-3">
-                          <div>
-                            <div className="flex justify-between items-center mb-1.5">
-                              <label className="text-[11px] text-slate-400 uppercase font-semibold">
-                                1. Adım: Test
-                              </label>
-                              {isTested && (
-                                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-0.5">
-                                  <Check className="w-3 h-3" /> Test Edildi
-                                </span>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => testCalibrateRun(pumpId)}
-                              disabled={calibLoading === pumpId}
-                              className={`w-full py-2.5 px-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 ${
-                                isTested
-                                  ? "bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700"
-                                  : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-950/50 animate-pulse"
-                              }`}
-                            >
-                              {calibLoading === pumpId ? (
-                                <Clock className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                              ) : (
-                                <>
-                                  <Play className="w-3.5 h-3.5 text-cyan-300 fill-current" />
-                                  {isTested ? "Tekrar Test Et" : "10 Sn Test Çalıştır"}
-                                </>
-                              )}
-                            </button>
-                          </div>
-
-                          {/* Adım 2: Ölçülen Sıvı Girişi (GÜVENLİK KİLİTLİ) */}
-                          <div className="flex flex-col gap-1.5 pt-2 border-t border-slate-800 relative">
-                            <label className="text-[11px] text-slate-400 uppercase font-semibold flex items-center justify-between">
-                              <span>2. Adım: Biriken (ml)</span>
-                              {!isTested && (
-                                <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
-                                  <Lock className="w-3 h-3" /> Kilitli
-                                </span>
-                              )}
-                            </label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0.1"
-                              disabled={!isTested}
-                              value={calibMeasuredMl[pumpId] || ""}
-                              onChange={(e) =>
-                                setCalibMeasuredMl({
-                                  ...calibMeasuredMl,
-                                  [pumpId]: e.target.value,
-                                })
-                              }
-                              placeholder={isTested ? "Örn: 15.0" : "Önce Testi Çalıştırın 🔒"}
-                              className={`rounded-xl p-2.5 text-xs font-mono transition-all ${
-                                !isTested
-                                  ? "bg-slate-900/40 border border-slate-800 text-slate-600 cursor-not-allowed placeholder:text-slate-600"
-                                  : "bg-slate-900 border border-cyan-500/50 text-white focus:outline-none focus:border-cyan-400 shadow-inner"
-                              }`}
-                            />
-                          </div>
-
-                          {/* Canlı Matematik Hesaplaması */}
-                          {calculatedRate && isTested && (
-                            <div className="bg-cyan-950/40 border border-cyan-500/30 p-2 rounded-xl text-[11px] text-cyan-300 font-mono flex items-center justify-between">
-                              <span>{valNum} ml / 10s =</span>
-                              <span className="font-bold text-xs text-cyan-200">
-                                {calculatedRate} ml/sn
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Adım 3: Kalibrasyonu Kaydet Butonu (GÜVENLİK KİLİTLİ) */}
-                      <button
-                        type="button"
-                        onClick={() => saveCalibration(pumpId)}
-                        disabled={
-                          !isTested ||
-                          calibSaving === pumpId ||
-                          !calibMeasuredMl[pumpId] ||
-                          parseFloat(calibMeasuredMl[pumpId]) <= 0
-                        }
-                        className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 px-3 rounded-xl font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-xs"
-                      >
-                        {calibSaving === pumpId ? (
-                          <Clock className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <>
-                            <Save className="w-3.5 h-3.5" /> Kalibrasyonu Kaydet
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          </div>
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 4: DOZAJ LOGLARI & ANALİZLER */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {activeTab === "logs" && (
+          <DosingLogsTab
+            logs={dosingLogs}
+            logsLoading={logsLoading}
+            pumpSettings={pumpSettings}
+            onRefreshLogs={fetchDosingLogs}
+          />
         )}
       </main>
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      {/* HEADER LOGLAR MODAL / SLIDE-OVER PANELİ */}
+      {/* MODALLAR */}
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      {isLogModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
-              <div className="flex items-center gap-3">
-                <div className="bg-cyan-500/10 p-2.5 rounded-xl border border-cyan-500/20 text-cyan-400">
-                  <History className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-100">Dozaj Geçmişi & Loglar</h3>
-                  <p className="text-xs text-slate-400">Tüm pompaların geçmiş çalışma ve dozajlama kayıtları</p>
-                </div>
-              </div>
+      {/* Dozaj Güvenlik Onay Modalı */}
+      <DosingConfirmModal
+        isOpen={confirmModalPumpId !== null}
+        pumpSetting={confirmModalPumpId ? pumpSettings[confirmModalPumpId] || null : null}
+        targetMl={confirmModalMl}
+        onConfirm={handleExecuteDose}
+        onClose={() => setConfirmModalPumpId(null)}
+      />
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={fetchDosingLogs}
-                  disabled={logsLoading}
-                  className="p-2 text-slate-400 hover:text-cyan-300 bg-slate-950 rounded-xl border border-slate-800 transition-colors"
-                  title="Yenile"
-                >
-                  <RotateCcw className={`w-4 h-4 ${logsLoading ? "animate-spin text-cyan-400" : ""}`} />
-                </button>
-                <button
-                  onClick={() => setIsLogModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-red-400 bg-slate-950 rounded-xl border border-slate-800 transition-colors"
-                  title="Kapat"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+      {/* Pompa Ayarları Modalı */}
+      <PumpSettingsModal
+        isOpen={editingPumpId !== null}
+        setting={editingPumpId ? pumpSettings[editingPumpId] || null : null}
+        onSave={handleSavePumpSettings}
+        onClose={() => setEditingPumpId(null)}
+      />
 
-            {/* Modal İçerik / İstatistik & Filtre Barı */}
-            <div className="p-5 border-b border-slate-800/80 bg-slate-950/60 flex flex-wrap gap-4 items-center justify-between">
-              {/* İstatistikler */}
-              <div className="flex items-center gap-4 text-xs font-mono">
-                <div className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-                  <span className="text-slate-400">Toplam Dozlanan: </span>
-                  <span className="text-emerald-400 font-bold">{totalDosedMlToday.toFixed(1)} ml</span>
-                </div>
-                <div className="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-                  <span className="text-slate-400">Kayıt Sayısı: </span>
-                  <span className="text-cyan-400 font-bold">{dosingLogs.length}</span>
-                </div>
-              </div>
 
-              {/* Pompa Filtreleme Butonları */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="text-slate-500 font-semibold flex items-center gap-1 mr-1">
-                  <Filter className="w-3 h-3" /> Filtre:
-                </span>
-                <button
-                  onClick={() => setLogPumpFilter(0)}
-                  className={`px-3 py-1 rounded-lg transition-all ${
-                    logPumpFilter === 0
-                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 font-semibold"
-                      : "bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800"
-                  }`}
-                >
-                  Tümü
-                </button>
-                {[1, 2, 3, 4].map((pumpId) => {
-                  const info = pumpSettings[pumpId] || { label: `${pumpId}. Pompa` };
-                  const isSelected = logPumpFilter === pumpId;
-
-                  return (
-                    <button
-                      key={pumpId}
-                      onClick={() => setLogPumpFilter(pumpId)}
-                      className={`px-2.5 py-1 rounded-lg transition-all ${
-                        isSelected
-                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 font-semibold"
-                          : "bg-slate-900 text-slate-400 border border-slate-800 hover:bg-slate-800"
-                      }`}
-                    >
-                      P{pumpId} ({info.label})
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Modal Liste Gövdesi */}
-            <div className="p-5 overflow-y-auto flex-1 space-y-3">
-              {logsLoading ? (
-                <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
-                  <Clock className="w-6 h-6 animate-spin text-cyan-400" />
-                  <p className="text-sm">Loglar yükleniyor...</p>
-                </div>
-              ) : dosingLogs.length === 0 ? (
-                <div className="py-12 text-center text-slate-500 text-sm">
-                  Henüz kaydedilmiş bir dozaj geçmişi bulunmuyor.
-                </div>
-              ) : (
-                dosingLogs.map((log) => {
-                  const info = pumpSettings[log.pump_id] || { label: `${log.pump_id}. Pompa` };
-                  const createdDate = new Date(log.created_at);
-
-                  return (
-                    <div
-                      key={log.id}
-                      className="flex items-center justify-between bg-slate-950/80 p-3.5 px-4 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition-colors"
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <div className="bg-slate-900 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-cyan-400 border border-slate-800 text-sm">
-                          P{log.pump_id}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-slate-200 text-sm">
-                              {info.label}
-                            </span>
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                                log.mode === "Manuel"
-                                  ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
-                                  : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
-                              }`}
-                            >
-                              {log.mode === "Manuel" ? "⚡ Manuel" : "📅 Zamanlanmış"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-400 font-mono mt-0.5">
-                            {createdDate.toLocaleDateString("tr-TR")} - {createdDate.toLocaleTimeString("tr-TR")}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-emerald-400 font-mono">
-                          +{log.ml_amount} ml
-                        </p>
-                        <p className="text-[11px] text-slate-500 font-mono">
-                          {log.duration_seconds} saniye
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

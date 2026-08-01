@@ -18,7 +18,7 @@ const long  gmtOffset_sec = 3 * 3600;
 const int   daylightOffset_sec = 0;   
 
 RTC_DS3231 rtc;
-WebServer server(80); // Lokal Anlık Bas-Tut Hortum Doldurma için WebSunucusu
+WebServer server(80); // Lokal Web Sunucusu (Port 80)
 
 const int POMPA_1 = 16;
 const int POMPA_2 = 17;
@@ -28,6 +28,9 @@ const int POMPA_4 = 19;
 // Hortum Havasını Alma (Priming) Güvenlik ve Canlılık Takibi (Watchdog)
 unsigned long primeLastHeartbeat[5] = {0, 0, 0, 0, 0};
 bool pumpPrimingActive[5] = {false, false, false, false, false};
+
+// Global Acil Durdurma Durum Bayrağı
+bool emergencyStopActive = false;
 
 // --- OFFLINE HAFIZA (CACHE) YAPISI ---
 struct HafizaGorev {
@@ -49,6 +52,7 @@ int sonCalisanDakika[5] = {-1, -1, -1, -1, -1};
 unsigned long sonİnternetKontrol = 0;
 unsigned long sonGorevKontrol = 0;
 
+// --- LOKAL HORTUM ÇEKME (PRIMING) ROUTE ---
 void handlePrime() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if (!server.hasArg("pump") || !server.hasArg("state")) {
@@ -81,6 +85,25 @@ void handlePrime() {
   }
 }
 
+// --- GLOBAL ACİL DURDURMA (E-STOP) ROUTE ---
+void handleStop() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  // Tüm motor pinlerini anında LOW (kapat) yap!
+  digitalWrite(POMPA_1, LOW);
+  digitalWrite(POMPA_2, LOW);
+  digitalWrite(POMPA_3, LOW);
+  digitalWrite(POMPA_4, LOW);
+
+  for (int p = 1; p <= 4; p++) {
+    pumpPrimingActive[p] = false;
+  }
+  
+  emergencyStopActive = true; // Çalışan motor loop'unu anında kıran bayrak
+  server.send(200, "text/plain", "STOP_OK");
+  Serial.println("\n[ACIL DURDUR] Arayuzden acil durdurma emri geldi! Tum pompalar aninda kesildi!");
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -102,7 +125,9 @@ void setup() {
   Serial.println("\nWiFi Baglantisi Tamam!");
   Serial.print("Lokal IP Adresi: "); Serial.println(WiFi.localIP());
 
+  // Lokal HTTP Sunucu Rotaları
   server.on("/prime", handlePrime);
+  server.on("/stop", handleStop);
   server.begin();
   Serial.println("Lokal WebServer Baslatildi (Port 80)");
 
@@ -128,6 +153,7 @@ void goreviPasifYap(int gorevID) {
   }
 }
 
+// --- NON-BLOCKING & ANLIK ACİL DURDURMA DESTEKLİ MOTOR ÇALIŞTIRMA ---
 void motorCalistir(int motorNo, int saniye) {
   int hedefPin = -1;
   if (motorNo == 1) hedefPin = POMPA_1;
@@ -136,15 +162,26 @@ void motorCalistir(int motorNo, int saniye) {
   else if (motorNo == 4) hedefPin = POMPA_4;
 
   if (hedefPin != -1) {
+    emergencyStopActive = false; // Yeni motor başlangıcında bayrağı sıfırla
     Serial.print("\n>>> "); 
     Serial.print(motorNo); Serial.print(". POMPA "); 
     Serial.print(saniye); Serial.println(" SN CALISIYOR... <<<");
     
     digitalWrite(hedefPin, HIGH); 
-    delay(saniye * 1000);         
-    digitalWrite(hedefPin, LOW);  
     
-    Serial.println(">>> ISLEM TAMAM! <<<\n");
+    // delay(saniye * 1000) YERİNE KESİNTİSİZ DİNLEYEN SAYAÇ:
+    unsigned long startMs = millis();
+    while (millis() - startMs < (unsigned long)saniye * 1000) {
+      server.handleClient(); // Acil durdurma veya hortum çekme HTTP isteklerini anında yakalar!
+      if (emergencyStopActive) {
+        Serial.println("[KESINTI] Acil durdurma tetiklendi, motor calisirken aninda durduruldu!");
+        break;
+      }
+      delay(10);
+    }
+    
+    digitalWrite(hedefPin, LOW);  
+    Serial.println(">>> ISLEM TAMAMLANDI VEYA KESILDI! <<<\n");
   }
 }
 
@@ -191,7 +228,7 @@ void kalpatisiGonder() {
 
 void loop() {
   DateTime now = rtc.now(); 
-  server.handleClient(); // Lokal HTTP İsteklerini (Bas-Tut Doldurma) Dinle
+  server.handleClient(); // Lokal HTTP İsteklerini Dinle
 
   // --- GÜVENLİK KİLİDİ (WATCHDOG TIMER) ---
   // Hortum doldurma sırasında Wi-Fi koparsa veya 1.5 sn sinyal gelmezse motoru anında kapat!
