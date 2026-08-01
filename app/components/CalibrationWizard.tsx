@@ -56,36 +56,54 @@ const getDynamicPumpTheme = (colorName?: string) => {
       selected: "bg-cyan-900/60 border-2 border-cyan-400 text-white ring-2 ring-cyan-400/50 shadow-[0_0_18px_rgba(6,182,212,0.4)]",
       badge: "bg-cyan-900/40 border border-cyan-400/50 text-cyan-300",
       text: "text-cyan-400",
+      liquidGradient: "from-cyan-500 via-blue-500 to-cyan-400",
+      liquidGlow: "shadow-[0_0_15px_rgba(6,182,212,0.6)]",
+      activeBg: "bg-gradient-to-br from-cyan-400 to-blue-600 text-slate-950 border-cyan-300 ring-2 ring-cyan-400/50",
     },
     emerald: {
       default: "bg-emerald-950/40 border-2 border-emerald-500/30 text-emerald-300 hover:border-emerald-400/80",
       selected: "bg-emerald-900/60 border-2 border-emerald-400 text-white ring-2 ring-emerald-400/50 shadow-[0_0_18px_rgba(16,185,129,0.4)]",
       badge: "bg-emerald-900/40 border border-emerald-400/50 text-emerald-300",
       text: "text-emerald-400",
+      liquidGradient: "from-emerald-500 via-teal-500 to-emerald-400",
+      liquidGlow: "shadow-[0_0_15px_rgba(16,185,129,0.6)]",
+      activeBg: "bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950 border-emerald-300 ring-2 ring-emerald-400/50",
     },
     amber: {
       default: "bg-amber-950/40 border-2 border-amber-500/30 text-amber-300 hover:border-amber-400/80",
       selected: "bg-amber-900/60 border-2 border-amber-400 text-white ring-2 ring-amber-400/50 shadow-[0_0_18px_rgba(245,158,11,0.4)]",
       badge: "bg-amber-900/40 border border-amber-400/50 text-amber-300",
       text: "text-amber-400",
+      liquidGradient: "from-amber-500 via-yellow-500 to-amber-400",
+      liquidGlow: "shadow-[0_0_15px_rgba(245,158,11,0.6)]",
+      activeBg: "bg-gradient-to-br from-amber-400 to-orange-600 text-slate-950 border-amber-300 ring-2 ring-amber-400/50",
     },
     rose: {
       default: "bg-rose-950/40 border-2 border-rose-500/30 text-rose-300 hover:border-rose-400/80",
       selected: "bg-rose-900/60 border-2 border-rose-400 text-white ring-2 ring-rose-400/50 shadow-[0_0_18px_rgba(244,63,94,0.4)]",
       badge: "bg-rose-900/40 border border-rose-400/50 text-rose-300",
       text: "text-rose-400",
+      liquidGradient: "from-rose-500 via-pink-500 to-rose-400",
+      liquidGlow: "shadow-[0_0_15px_rgba(244,63,94,0.6)]",
+      activeBg: "bg-gradient-to-br from-rose-400 to-pink-600 text-slate-950 border-rose-300 ring-2 ring-rose-400/50",
     },
     purple: {
       default: "bg-purple-950/40 border-2 border-purple-500/30 text-purple-300 hover:border-purple-400/80",
       selected: "bg-purple-900/60 border-2 border-purple-400 text-white ring-2 ring-purple-400/50 shadow-[0_0_18px_rgba(168,85,247,0.4)]",
       badge: "bg-purple-900/40 border border-purple-400/50 text-purple-300",
       text: "text-purple-400",
+      liquidGradient: "from-purple-500 via-fuchsia-500 to-purple-400",
+      liquidGlow: "shadow-[0_0_15px_rgba(168,85,247,0.6)]",
+      activeBg: "bg-gradient-to-br from-purple-400 to-fuchsia-600 text-slate-950 border-purple-300 ring-2 ring-purple-400/50",
     },
     blue: {
       default: "bg-blue-950/40 border-2 border-blue-500/30 text-blue-300 hover:border-blue-400/80",
       selected: "bg-blue-900/60 border-2 border-blue-400 text-white ring-2 ring-blue-400/50 shadow-[0_0_18px_rgba(59,130,246,0.4)]",
       badge: "bg-blue-900/40 border border-blue-400/50 text-blue-300",
       text: "text-blue-400",
+      liquidGradient: "from-blue-500 via-indigo-500 to-blue-400",
+      liquidGlow: "shadow-[0_0_15px_rgba(59,130,246,0.6)]",
+      activeBg: "bg-gradient-to-br from-blue-400 to-indigo-600 text-slate-950 border-blue-300 ring-2 ring-blue-400/50",
     },
   };
   return map[c] || map.cyan;
@@ -126,6 +144,8 @@ export default function CalibrationWizard({
     rate: 1.0,
     label: `${selectedPump}. Pompa`,
   };
+
+  const selectedTheme = getDynamicPumpTheme(currentSetting.color);
 
   // Gerçek Veritabanı Logları & Ayarlarından Dinamik Pompa İstatistikleri Hesaplama
   const pumpStats = useMemo(() => {
@@ -319,42 +339,77 @@ export default function CalibrationWizard({
         </div>
       </div>
 
-      {/* Stepper Adım Göstergesi */}
-      <div className="grid grid-cols-4 gap-2 border-y border-slate-800 py-4 text-center">
-        {[
-          { step: 1, title: "1. Hava Al" },
-          { step: 2, title: "2. 10sn Test" },
-          { step: 3, title: "3. Ölçüm Gir" },
-          { step: 4, title: "4. Tamamla" },
-        ].map((item) => {
-          const isActive = currentStep === item.step;
-          const isDone = currentStep > item.step;
-          return (
-            <div
-              key={item.step}
-              className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all ${
-                isActive
-                  ? "bg-cyan-950/60 border-cyan-500/60 text-cyan-300 font-bold"
-                  : isDone
-                  ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-400 font-semibold"
-                  : "bg-slate-950/40 border-slate-800 text-slate-500"
-              }`}
-            >
+      {/* SIVI AKIŞLI HORTUM STEPPER ADIM GÖSTERGESİ (Liquid Flow Progress Hose Bar) */}
+      <div className="relative border-y border-slate-800/80 py-5 px-4 my-2 select-none">
+        {/* ARKA PLAN SAYDAM SİLİKON HORTUM (Transparent Silicone Hose Tube) */}
+        <div className="absolute top-1/2 left-[12%] right-[12%] -translate-y-1/2 h-3.5 bg-slate-950/90 rounded-full border-2 border-slate-800/90 overflow-hidden shadow-inner z-0">
+          {/* Cam Yansıma Çizgisi */}
+          <div className="absolute top-0.5 left-0 right-0 h-[1px] bg-white/20 z-20" />
+
+          {/* İLERLEYEN AKICI SIVI DOLDURMA (Flowing Liquid Fill inside Hose) */}
+          <div
+            className={`h-full bg-gradient-to-r ${selectedTheme.liquidGradient} transition-all duration-700 ease-out relative ${selectedTheme.liquidGlow}`}
+            style={{
+              width:
+                currentStep === 1
+                  ? "0%"
+                  : currentStep === 2
+                  ? "33.33%"
+                  : currentStep === 3
+                  ? "66.66%"
+                  : "100%",
+            }}
+          >
+            {/* Sıvı İçi Akış Baloncukları & Dalga Efekti (Horizontal Waves & Bubbles) */}
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.4)_50%,transparent_100%)] bg-[length:30px_100%] animate-pulse" />
+          </div>
+        </div>
+
+        {/* 4 ADET ADIM HALKASI (Step Nodes OVERLAID ON HOSE) */}
+        <div className="relative z-10 grid grid-cols-4 gap-2 text-center">
+          {[
+            { step: 1, title: "1. Hava Al" },
+            { step: 2, title: "2. 10sn Test" },
+            { step: 3, title: "3. Ölçüm Gir" },
+            { step: 4, title: "4. Tamamla" },
+          ].map((item) => {
+            const isActive = currentStep === item.step;
+            const isDone = currentStep > item.step;
+            const isReached = currentStep >= item.step;
+
+            return (
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono font-black ${
-                  isActive
-                    ? "bg-cyan-500 text-slate-950"
-                    : isDone
-                    ? "bg-emerald-500 text-slate-950"
-                    : "bg-slate-800 text-slate-400"
-                }`}
+                key={item.step}
+                className="flex flex-col items-center gap-2 group cursor-pointer"
+                onClick={() => isDone && setCurrentStep(item.step)}
               >
-                {isDone ? <CheckCircle2 className="w-4 h-4" /> : item.step}
+                {/* Adım Dairesi - Sıvı Ulaşınca Seçili Pompanın Temalı Rengini Alır */}
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-mono font-black border-2 transition-all duration-500 shadow-xl ${
+                    isReached
+                      ? `${selectedTheme.activeBg} scale-110 ${selectedTheme.liquidGlow}`
+                      : "bg-slate-950 border-slate-700 text-slate-500"
+                  }`}
+                >
+                  {isDone ? (
+                    <CheckCircle2 className="w-5 h-5 animate-in zoom-in-75 duration-300" />
+                  ) : (
+                    <span>{item.step}</span>
+                  )}
+                </div>
+
+                {/* Adım Başlığı */}
+                <span
+                  className={`text-[11.5px] font-mono transition-colors duration-300 ${
+                    isReached ? `${selectedTheme.text} font-bold` : "text-slate-500 font-normal"
+                  }`}
+                >
+                  {item.title}
+                </span>
               </div>
-              <span className="text-[11px] hidden sm:inline">{item.title}</span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* ADIM 1: HAVA ALMA (PRIMING) */}
@@ -409,7 +464,7 @@ export default function CalibrationWizard({
               <Clock className="w-4 h-4" /> Adım 2: 10 Saniyelik Test Çalıştırması
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Ölçü kabını hortumun ucuna yerleştirin. Aşağıdaki butona tıkladığınızda pompa <strong>tam 10 saniye</strong> çalışacak ve duracaktır.
+              Ölkü kabını hortumun ucuna yerleştirin. Aşağıdaki butona tıkladığınızda pompa <strong>tam 10 saniye</strong> çalışacak ve duracaktır.
             </p>
           </div>
 
