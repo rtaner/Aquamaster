@@ -240,30 +240,69 @@ export default function AquaMaster() {
     if (data) setSchedules(data);
   };
 
-  // Hortum Havası Alma (Priming)
+  // Hortum Havası Alma (Priming) — Sade & Hızlı
+  // İlk ON ve son OFF: düz fetch (anlık tepki)
+  // Heartbeat ON'lar: AbortController ile bağlı (bırakınca hepsi anında iptal)
+  // Güvenlik: ESP32 donanım watchdog (1500ms sinyal yoksa otomatik kapanır)
+  const primeSafetyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const primeHeartbeatAbortRef = useRef<AbortController | null>(null);
+
   const startPriming = (pumpId: number) => {
     if (!deviceIp) {
       bildirimGoster("ESP32 Lokal IP adresi henüz alınamadı. Cihazın açık olduğundan emin olun.", "error");
       return;
     }
+
+    // Önceki interval, abort ve güvenlik zamanlayıcısını temizle
+    if (primeIntervalRef.current) clearInterval(primeIntervalRef.current);
+    if (primeSafetyTimeoutRef.current) clearTimeout(primeSafetyTimeoutRef.current);
+    if (primeHeartbeatAbortRef.current) primeHeartbeatAbortRef.current.abort();
+
     setPrimingPump(pumpId);
 
-    const sendSignal = (state: "on" | "off") => {
-      fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=${state}`, { mode: "no-cors" }).catch(() => {});
-    };
+    // İlk anlık açma sinyali — DÜZ FETCH (AbortController yok, anında gider)
+    fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=on`, { mode: "no-cors" }).catch(() => {});
 
-    sendSignal("on");
-    if (primeIntervalRef.current) clearInterval(primeIntervalRef.current);
-    primeIntervalRef.current = setInterval(() => sendSignal("on"), 500);
+    // Heartbeat için paylaşımlı AbortController (bırakınca hepsi birden iptal edilecek)
+    const heartbeatAc = new AbortController();
+    primeHeartbeatAbortRef.current = heartbeatAc;
+
+    // Canlı tutma heartbeat (250ms periyot, iptal edilebilir)
+    primeIntervalRef.current = setInterval(() => {
+      if (!heartbeatAc.signal.aborted) {
+        fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=on`, {
+          mode: "no-cors",
+          signal: heartbeatAc.signal,
+        }).catch(() => {});
+      }
+    }, 250);
+
+    // Tarayıcı taraflı güvenlik sınırı (max 15 saniye)
+    primeSafetyTimeoutRef.current = setTimeout(() => {
+      stopPriming(pumpId);
+      bildirimGoster("⚠️ Güvenlik amacıyla hortum havası alma 15 saniyede otomatik durduruldu.", "error");
+    }, 15000);
   };
 
-  const stopPriming = (pumpId: number) => {
+  const stopPriming = (pumpId: number | null) => {
+    // 1. Interval'i durdur (yeni heartbeat üretmeyi kes)
     if (primeIntervalRef.current) {
       clearInterval(primeIntervalRef.current);
       primeIntervalRef.current = null;
     }
+    // 2. Kuyrukta bekleyen TÜM heartbeat ON sinyallerini anında iptal et!
+    if (primeHeartbeatAbortRef.current) {
+      primeHeartbeatAbortRef.current.abort();
+      primeHeartbeatAbortRef.current = null;
+    }
+    if (primeSafetyTimeoutRef.current) {
+      clearTimeout(primeSafetyTimeoutRef.current);
+      primeSafetyTimeoutRef.current = null;
+    }
     setPrimingPump(null);
-    if (deviceIp) {
+
+    // 3. Tek kapatma sinyali — DÜZ FETCH (kuyruk temizlendikten SONRA gider)
+    if (deviceIp && pumpId !== null) {
       fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=off`, { mode: "no-cors" }).catch(() => {});
     }
   };
@@ -361,6 +400,20 @@ export default function AquaMaster() {
     setLoading(null);
   };
 
+  // Sekme Değiştirme / Pencere Odak Kaybı Güvenlik Dinleyicisi (Sadece Blur)
+  // NOT: window.pointerup kaldırıldı — Pointer Capture zaten onPointerUp'ı garantiliyor.
+  // İkisi bir arada stopPriming'i 2× tetikleyerek HTTP sel baskınına neden oluyordu.
+  useEffect(() => {
+    const handleBlur = () => {
+      if (primingPump !== null) {
+        stopPriming(primingPump);
+      }
+    };
+
+    window.addEventListener("blur", handleBlur);
+    return () => window.removeEventListener("blur", handleBlur);
+  }, [primingPump]);
+
   // Global ACİL DURDUR (E-STOP)
   const handleEmergencyStop = async () => {
     // 1. Canlı geri sayımı durdur
@@ -371,14 +424,19 @@ export default function AquaMaster() {
       clearInterval(primeIntervalRef.current);
       primeIntervalRef.current = null;
     }
+    if (primeSafetyTimeoutRef.current) {
+      clearTimeout(primeSafetyTimeoutRef.current);
+      primeSafetyTimeoutRef.current = null;
+    }
     setPrimingPump(null);
 
-    // 3. ESP32 lokal HTTP sinyali gönder
+    // 3. ESP32 lokal HTTP sinyali gönder (Tüm pompaları kesmek için 3 kez teyitli kapatma sinyali)
     if (deviceIp) {
-      fetch(`http://${deviceIp}/prime?pump=1&state=off`, { mode: "no-cors" }).catch(() => {});
-      fetch(`http://${deviceIp}/prime?pump=2&state=off`, { mode: "no-cors" }).catch(() => {});
-      fetch(`http://${deviceIp}/prime?pump=3&state=off`, { mode: "no-cors" }).catch(() => {});
-      fetch(`http://${deviceIp}/prime?pump=4&state=off`, { mode: "no-cors" }).catch(() => {});
+      for (let p = 1; p <= 4; p++) {
+        fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => {});
+        setTimeout(() => fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => {}), 100);
+        setTimeout(() => fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => {}), 250);
+      }
     }
 
     // 4. Supabase'deki bekleyen tek seferlik emirleri sil

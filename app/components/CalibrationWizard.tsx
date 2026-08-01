@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { 
   FlaskConical, 
   Play, 
@@ -36,6 +36,121 @@ const iconMap: { [key: string]: any } = {
   Leaf,
   Water: Droplet,
 };
+
+const colorHexMap: { [key: string]: string } = {
+  cyan: "#06b6d4",
+  emerald: "#10b981",
+  amber: "#f59e0b",
+  rose: "#f43f5e",
+  purple: "#a855f7",
+  blue: "#3b82f6",
+};
+
+/**
+ * Hortum İçinde Yatay İlerleyen Canlı 60fps Çift Sinüs Dalga Sıvı Motoru
+ * (BottleVisualizer ile birebir aynı wave1 opacity 0.45, wave2 opacity 0.85 katmanları)
+ */
+function HoseSineLiquidWave({ percentage, colorHex }: { percentage: number; colorHex: string }) {
+  const wave1Ref = useRef<SVGPathElement>(null);
+  const wave2Ref = useRef<SVGPathElement>(null);
+  const phaseRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const animatedXRef = useRef<number>((percentage / 100) * 100);
+
+  const V_W = 100;
+  const V_H = 20;
+
+  const buildHorizontalWavePath = (frontX: number, amp: number, phase: number, tilt: number) => {
+    const points: string[] = [];
+    const centerY = V_H / 2;
+    for (let y = 0; y <= V_H; y += 2) {
+      // Çalkantı eğimi: Üst kısım (y=0) ilerideyken alt kısım (y=20) geride kalır (çalkantı salınımı)
+      const tiltOffset = ((centerY - y) / centerY) * tilt;
+      const waveSine = Math.sin((y / V_H) * Math.PI * 2 + phase) * amp;
+      points.push(`${(frontX + tiltOffset + waveSine).toFixed(1)},${y}`);
+    }
+    return `M 0,0 L ${points.join(" L ")} L 0,${V_H} Z`;
+  };
+
+  useEffect(() => {
+    const tick = () => {
+      phaseRef.current += 0.012; // Sakin, yumuşak 60fps çalkantı ritmi
+      const targetX = (percentage / 100) * V_W;
+
+      // SIVI AKIŞKANLIK LERP ANİMASYONU (Akış ilerleme hızı %77 yavaşlatıldı: 0.014)
+      const diff = targetX - animatedXRef.current;
+      animatedXRef.current += diff * 0.014;
+
+      const currentX = Math.max(0, animatedXRef.current);
+      const tilt = Math.sin(phaseRef.current * 0.9) * 0.65;
+
+      if (wave1Ref.current) {
+        wave1Ref.current.setAttribute("d", buildHorizontalWavePath(currentX, 0.45, phaseRef.current, tilt));
+      }
+
+      if (wave2Ref.current) {
+        wave2Ref.current.setAttribute("d", buildHorizontalWavePath(currentX, 0.3, phaseRef.current + 1.4, -tilt));
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [percentage]);
+
+  return (
+    <svg viewBox={`0 0 ${V_W} ${V_H}`} preserveAspectRatio="none" className="w-full h-full overflow-visible">
+      {/* Katman 1 (Arka Dalga - Opaklık 0.45) */}
+      <path ref={wave1Ref} fill={colorHex} opacity={0.45} />
+      {/* Katman 2 (Ön Dalga - Opaklık 0.85) */}
+      <path ref={wave2Ref} fill={colorHex} opacity={0.85} />
+    </svg>
+  );
+}
+
+/**
+ * Gerçekçi Esnek Akvaryum Silikon Hortumu Gövdesi (Organic Flexible Silicone Hose Tube)
+ * Düz demir çubuk görünümü yerine hafif doğal esneklik kavisleri içerir.
+ */
+function FlexibleSiliconeHose({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="absolute top-[38px] left-[12%] right-[12%] -translate-y-1/2 h-5.5 z-0 pointer-events-none">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+        <defs>
+          {/* Esnek Hortum Kavisli Maskesi (Belirgin Doğal Silikon Eğrisi) */}
+          <clipPath id="flexibleHoseClip">
+            <path d="M 0,5 Q 25,9.5 50,5 Q 75,0.5 100,5 L 100,15 Q 75,10.5 50,15 Q 25,19.5 0,15 Z" />
+          </clipPath>
+        </defs>
+
+        {/* Hortum Arka Dış Çeper Sınırı (Kavisli Silikon Hortum Dış Duvarı) */}
+        <path
+          d="M 0,3.5 Q 25,8 50,3.5 Q 75,-1 100,3.5 L 100,16.5 Q 75,12 50,16.5 Q 25,21 0,16.5 Z"
+          fill="#020617"
+          stroke="#1e293b"
+          strokeWidth="1.2"
+        />
+
+        {/* Hortum İç Saydam Sıvı Kanalı (İçinde Dalgalanan Canlı Sıvı) */}
+        <g clipPath="url(#flexibleHoseClip)">
+          {children}
+        </g>
+
+        {/* Hortum Üstü Parlak Cam/Silikon Yansıma Çizgisi (Silicone Gloss Line) */}
+        <path
+          d="M 0,5 Q 25,9.5 50,5 Q 75,0.5 100,5"
+          fill="none"
+          stroke="white"
+          strokeWidth="0.75"
+          opacity="0.3"
+        />
+      </svg>
+    </div>
+  );
+}
 
 const parseLogDate = (raw?: any): Date => {
   if (!raw) return new Date(0);
@@ -146,6 +261,7 @@ export default function CalibrationWizard({
   };
 
   const selectedTheme = getDynamicPumpTheme(currentSetting.color);
+  const selectedHexColor = colorHexMap[currentSetting.color || "cyan"] || "#06b6d4";
 
   // Gerçek Veritabanı Logları & Ayarlarından Dinamik Pompa İstatistikleri Hesaplama
   const pumpStats = useMemo(() => {
@@ -219,6 +335,20 @@ export default function CalibrationWizard({
   const calculatedRate = !isNaN(valNum) && valNum > 0 ? (valNum / 10).toFixed(3) : null;
   const isTested = testedForPump[selectedPump];
 
+  // Standartlaştırılmış Sıvı Yüzdesi Mantığı:
+  // Adım 1'deyken: %0 (Hortum tamamen boş)
+  // Adım 2'deyken (Adım 1 tamamlandı): %27 (Halkanın tam dışında, geride!)
+  // Adım 3'teyken (Adım 1 ve 2 tamamlandı): %60 (Halkanın tam dışında, geride!)
+  // Adım 4'teyken (Tamamlandı): %100 (Hortum tam dolu)
+  const currentPercentage =
+    currentStep === 1
+      ? 0
+      : currentStep === 2
+      ? 27
+      : currentStep === 3
+      ? 60
+      : 100;
+
   return (
     <div className="glass-panel rounded-3xl p-6 border border-cyan-500/20 shadow-2xl space-y-6 animate-in fade-in duration-300">
       {/* Üst Bilgi Başlığı */}
@@ -275,7 +405,7 @@ export default function CalibrationWizard({
             </div>
           </div>
 
-          {/* 4 Adet Tam Genişliğe Yayılan Eşit İri Kare Seçim Kutusu (SABİT KÜÇÜLMEYEN İDEAL BOYUT) */}
+          {/* 4 Adet Tam Genişliğe Yayılan Eşit İri Kare Seçim Kutusu */}
           <div className="grid grid-cols-4 gap-2.5 w-full">
             {[1, 2, 3, 4].map((id) => {
               const setting = pumpSettings[id] || { label: `${id}. Pompa`, color: "cyan", icon: "Droplets" };
@@ -339,31 +469,12 @@ export default function CalibrationWizard({
         </div>
       </div>
 
-      {/* SIVI AKIŞLI HORTUM STEPPER ADIM GÖSTERGESİ (Liquid Flow Progress Hose Bar) */}
+      {/* SIVI AKIŞLI HORTUM STEPPER ADIM GÖSTERGESİ */}
       <div className="relative border-y border-slate-800/80 py-5 px-4 my-2 select-none">
-        {/* ARKA PLAN SAYDAM SİLİKON HORTUM (Transparent Silicone Hose Tube) */}
-        <div className="absolute top-1/2 left-[12%] right-[12%] -translate-y-1/2 h-3.5 bg-slate-950/90 rounded-full border-2 border-slate-800/90 overflow-hidden shadow-inner z-0">
-          {/* Cam Yansıma Çizgisi */}
-          <div className="absolute top-0.5 left-0 right-0 h-[1px] bg-white/20 z-20" />
-
-          {/* İLERLEYEN AKICI SIVI DOLDURMA (Flowing Liquid Fill inside Hose) */}
-          <div
-            className={`h-full bg-gradient-to-r ${selectedTheme.liquidGradient} transition-all duration-700 ease-out relative ${selectedTheme.liquidGlow}`}
-            style={{
-              width:
-                currentStep === 1
-                  ? "0%"
-                  : currentStep === 2
-                  ? "33.33%"
-                  : currentStep === 3
-                  ? "66.66%"
-                  : "100%",
-            }}
-          >
-            {/* Sıvı İçi Akış Baloncukları & Dalga Efekti (Horizontal Waves & Bubbles) */}
-            <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.4)_50%,transparent_100%)] bg-[length:30px_100%] animate-pulse" />
-          </div>
-        </div>
+        {/* ARKA PLAN SAYDAM ESNEK SİLİKON HORTUM (Kavisli Doğal Silikon Gövde) */}
+        <FlexibleSiliconeHose>
+          <HoseSineLiquidWave percentage={currentPercentage} colorHex={selectedHexColor} />
+        </FlexibleSiliconeHose>
 
         {/* 4 ADET ADIM HALKASI (Step Nodes OVERLAID ON HOSE) */}
         <div className="relative z-10 grid grid-cols-4 gap-2 text-center">
@@ -374,8 +485,8 @@ export default function CalibrationWizard({
             { step: 4, title: "4. Tamamla" },
           ].map((item) => {
             const isActive = currentStep === item.step;
-            const isDone = currentStep > item.step;
-            const isReached = currentStep >= item.step;
+            // 4. Adıma gelindiğinde 4. Adım da otomatik tiklenir (%100 tamamlandı hissi!)
+            const isDone = currentStep > item.step || (currentStep === 4 && item.step === 4);
 
             return (
               <div
@@ -383,11 +494,13 @@ export default function CalibrationWizard({
                 className="flex flex-col items-center gap-2 group cursor-pointer"
                 onClick={() => isDone && setCurrentStep(item.step)}
               >
-                {/* Adım Dairesi - Sıvı Ulaşınca Seçili Pompanın Temalı Rengini Alır */}
+                {/* Sadece Tamamlanan Adımlar (isDone) Pompanın Rengini ve Tik İşaretini Alır */}
                 <div
                   className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-mono font-black border-2 transition-all duration-500 shadow-xl ${
-                    isReached
-                      ? `${selectedTheme.activeBg} scale-110 ${selectedTheme.liquidGlow}`
+                    isDone
+                      ? `${selectedTheme.activeBg} scale-105 ${selectedTheme.liquidGlow}`
+                      : isActive
+                      ? `bg-slate-950 ${selectedTheme.text} border-current ring-2 ${selectedTheme.ring} scale-110 shadow-lg`
                       : "bg-slate-950 border-slate-700 text-slate-500"
                   }`}
                 >
@@ -401,7 +514,7 @@ export default function CalibrationWizard({
                 {/* Adım Başlığı */}
                 <span
                   className={`text-[11.5px] font-mono transition-colors duration-300 ${
-                    isReached ? `${selectedTheme.text} font-bold` : "text-slate-500 font-normal"
+                    isDone || isActive ? `${selectedTheme.text} font-bold` : "text-slate-500 font-normal"
                   }`}
                 >
                   {item.title}
@@ -427,12 +540,33 @@ export default function CalibrationWizard({
           <div className="flex flex-col items-center justify-center py-6 gap-4">
             <button
               type="button"
-              onMouseDown={() => onStartPriming(selectedPump)}
-              onMouseUp={() => onStopPriming(selectedPump)}
-              onMouseLeave={() => onStopPriming(selectedPump)}
-              onTouchStart={() => onStartPriming(selectedPump)}
-              onTouchEnd={() => onStopPriming(selectedPump)}
-              className={`w-full max-w-sm py-4 rounded-2xl font-bold text-sm border flex items-center justify-center gap-2 transition-all shadow-lg select-none ${
+              onPointerDown={(e) => {
+                e.preventDefault();
+                try {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                } catch {}
+                onStartPriming(selectedPump);
+              }}
+              onPointerUp={(e) => {
+                e.preventDefault();
+                try {
+                  if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  }
+                } catch {}
+                onStopPriming(selectedPump);
+              }}
+              onPointerCancel={(e) => {
+                e.preventDefault();
+                try {
+                  if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  }
+                } catch {}
+                onStopPriming(selectedPump);
+              }}
+              onContextMenu={(e) => e.preventDefault()}
+              className={`w-full max-w-sm py-4 rounded-2xl font-bold text-sm border flex items-center justify-center gap-2 transition-all shadow-lg select-none cursor-pointer ${
                 primingPump === selectedPump
                   ? "bg-cyan-500 text-slate-950 border-cyan-400 ring-4 ring-cyan-500/40 animate-pulse scale-95"
                   : "bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700 hover:border-cyan-500/50"
@@ -464,7 +598,7 @@ export default function CalibrationWizard({
               <Clock className="w-4 h-4" /> Adım 2: 10 Saniyelik Test Çalıştırması
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Ölkü kabını hortumun ucuna yerleştirin. Aşağıdaki butona tıkladığınızda pompa <strong>tam 10 saniye</strong> çalışacak ve duracaktır.
+              Ölçü kabını hortumun ucuna yerleştirin. Aşağıdaki butona tıkladığınızda pompa <strong>tam 10 saniye</strong> çalışacak ve duracaktır.
             </p>
           </div>
 
