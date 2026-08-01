@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { 
   FlaskConical, 
   Play, 
@@ -15,11 +15,16 @@ import {
   Droplets,
   Zap,
   Shield,
+  ShieldCheck,
   Heart,
   Sparkles,
-  Leaf
+  Leaf,
+  Calendar,
+  RotateCcw,
+  Plus,
+  Minus
 } from "lucide-react";
-import { PumpSetting } from "@/types/aquamaster";
+import { PumpSetting, DosingLog } from "@/types/aquamaster";
 
 const iconMap: { [key: string]: any } = {
   Droplets,
@@ -32,43 +37,54 @@ const iconMap: { [key: string]: any } = {
   Water: Droplet,
 };
 
+const parseLogDate = (raw?: any): Date => {
+  if (!raw) return new Date(0);
+  if (raw instanceof Date) return raw;
+  let s = String(raw).trim();
+  if (s.includes(" ") && !s.includes("T")) {
+    s = s.replace(" ", "T");
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? new Date(0) : d;
+};
+
 const getDynamicPumpTheme = (colorName?: string) => {
   const c = colorName || "cyan";
   const map: { [key: string]: any } = {
     cyan: {
-      default: "bg-cyan-950/40 border-cyan-500/50 text-cyan-300 hover:border-cyan-400/80",
-      selected: "bg-cyan-900/60 border-2 border-cyan-400 text-white ring-2 ring-cyan-400/80 shadow-[0_0_20px_rgba(6,182,212,0.45)] scale-[1.03]",
-      badge: "bg-cyan-900/40 border-cyan-400/50 text-cyan-300",
+      default: "bg-cyan-950/40 border-2 border-cyan-500/30 text-cyan-300 hover:border-cyan-400/80",
+      selected: "bg-cyan-900/60 border-2 border-cyan-400 text-white ring-2 ring-cyan-400/50 shadow-[0_0_18px_rgba(6,182,212,0.4)]",
+      badge: "bg-cyan-900/40 border border-cyan-400/50 text-cyan-300",
       text: "text-cyan-400",
     },
     emerald: {
-      default: "bg-emerald-950/40 border-emerald-500/50 text-emerald-300 hover:border-emerald-400/80",
-      selected: "bg-emerald-900/60 border-2 border-emerald-400 text-white ring-2 ring-emerald-400/80 shadow-[0_0_20px_rgba(16,185,129,0.45)] scale-[1.03]",
-      badge: "bg-emerald-900/40 border-emerald-400/50 text-emerald-300",
+      default: "bg-emerald-950/40 border-2 border-emerald-500/30 text-emerald-300 hover:border-emerald-400/80",
+      selected: "bg-emerald-900/60 border-2 border-emerald-400 text-white ring-2 ring-emerald-400/50 shadow-[0_0_18px_rgba(16,185,129,0.4)]",
+      badge: "bg-emerald-900/40 border border-emerald-400/50 text-emerald-300",
       text: "text-emerald-400",
     },
     amber: {
-      default: "bg-amber-950/40 border-amber-500/50 text-amber-300 hover:border-amber-400/80",
-      selected: "bg-amber-900/60 border-2 border-amber-400 text-white ring-2 ring-amber-400/80 shadow-[0_0_20px_rgba(245,158,11,0.45)] scale-[1.03]",
-      badge: "bg-amber-900/40 border-amber-400/50 text-amber-300",
+      default: "bg-amber-950/40 border-2 border-amber-500/30 text-amber-300 hover:border-amber-400/80",
+      selected: "bg-amber-900/60 border-2 border-amber-400 text-white ring-2 ring-amber-400/50 shadow-[0_0_18px_rgba(245,158,11,0.4)]",
+      badge: "bg-amber-900/40 border border-amber-400/50 text-amber-300",
       text: "text-amber-400",
     },
     rose: {
-      default: "bg-rose-950/40 border-rose-500/50 text-rose-300 hover:border-rose-400/80",
-      selected: "bg-rose-900/60 border-2 border-rose-400 text-white ring-2 ring-rose-400/80 shadow-[0_0_20px_rgba(244,63,94,0.45)] scale-[1.03]",
-      badge: "bg-rose-900/40 border-rose-400/50 text-rose-300",
+      default: "bg-rose-950/40 border-2 border-rose-500/30 text-rose-300 hover:border-rose-400/80",
+      selected: "bg-rose-900/60 border-2 border-rose-400 text-white ring-2 ring-rose-400/50 shadow-[0_0_18px_rgba(244,63,94,0.4)]",
+      badge: "bg-rose-900/40 border border-rose-400/50 text-rose-300",
       text: "text-rose-400",
     },
     purple: {
-      default: "bg-purple-950/40 border-purple-500/50 text-purple-300 hover:border-purple-400/80",
-      selected: "bg-purple-900/60 border-2 border-purple-400 text-white ring-2 ring-purple-400/80 shadow-[0_0_20px_rgba(168,85,247,0.45)] scale-[1.03]",
-      badge: "bg-purple-900/40 border-purple-400/50 text-purple-300",
+      default: "bg-purple-950/40 border-2 border-purple-500/30 text-purple-300 hover:border-purple-400/80",
+      selected: "bg-purple-900/60 border-2 border-purple-400 text-white ring-2 ring-purple-400/50 shadow-[0_0_18px_rgba(168,85,247,0.4)]",
+      badge: "bg-purple-900/40 border border-purple-400/50 text-purple-300",
       text: "text-purple-400",
     },
     blue: {
-      default: "bg-blue-950/40 border-blue-500/50 text-blue-300 hover:border-blue-400/80",
-      selected: "bg-blue-900/60 border-2 border-blue-400 text-white ring-2 ring-blue-400/80 shadow-[0_0_20px_rgba(59,130,246,0.45)] scale-[1.03]",
-      badge: "bg-blue-900/40 border-blue-400/50 text-blue-300",
+      default: "bg-blue-950/40 border-2 border-blue-500/30 text-blue-300 hover:border-blue-400/80",
+      selected: "bg-blue-900/60 border-2 border-blue-400 text-white ring-2 ring-blue-400/50 shadow-[0_0_18px_rgba(59,130,246,0.4)]",
+      badge: "bg-blue-900/40 border border-blue-400/50 text-blue-300",
       text: "text-blue-400",
     },
   };
@@ -76,6 +92,7 @@ const getDynamicPumpTheme = (colorName?: string) => {
 };
 
 interface CalibrationWizardProps {
+  logs?: DosingLog[];
   pumpSettings: { [key: number]: PumpSetting };
   isOnline: boolean | null;
   calibLoading: number | null;
@@ -88,6 +105,7 @@ interface CalibrationWizardProps {
 }
 
 export default function CalibrationWizard({
+  logs,
   pumpSettings,
   isOnline,
   calibLoading,
@@ -108,6 +126,58 @@ export default function CalibrationWizard({
     rate: 1.0,
     label: `${selectedPump}. Pompa`,
   };
+
+  // Gerçek Veritabanı Logları & Ayarlarından Dinamik Pompa İstatistikleri Hesaplama
+  const pumpStats = useMemo(() => {
+    const pumpLogs = (logs || []).filter((l) => Number(l.pump_id) === Number(selectedPump));
+    const totalDoses = pumpLogs.length;
+
+    // 1. Son Kalibrasyon Tarihi (Veritabanındaki last_calibrated_at damgası)
+    let lastCalibStr = "Kalibre Edilmeli";
+    if (currentSetting.last_calibrated_at) {
+      const d = parseLogDate(currentSetting.last_calibrated_at);
+      lastCalibStr = d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
+    } else {
+      const calibLogs = pumpLogs.filter((l) => (l.mode || "").toLowerCase().includes("kalibrasyon"));
+      if (calibLogs.length > 0) {
+        const latestCalib = new Date(Math.max(...calibLogs.map((l) => parseLogDate(l.created_at).getTime())));
+        lastCalibStr = latestCalib.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
+      }
+    }
+
+    // 2. Çalışma Sayısı
+    const doseCountStr = totalDoses > 0 ? `${totalDoses} Dozlama` : "0 Dozlama";
+
+    // 3. Kalibrasyon Güvenlik Skoru (Geçen Zaman Bazlı Hassasiyet Sağlık Skoru)
+    let trustScore = "Kalibre Edilmeli";
+    let trustColor = "text-amber-400/90 font-medium";
+
+    if (currentSetting.last_calibrated_at) {
+      const calibDate = parseLogDate(currentSetting.last_calibrated_at);
+      const daysDiff = Math.floor((Date.now() - calibDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff <= 30) {
+        trustScore = "%98 Yüksek";
+        trustColor = "text-emerald-400 font-bold";
+      } else if (daysDiff <= 60) {
+        trustScore = "%90 İyi";
+        trustColor = "text-cyan-400 font-bold";
+      } else if (daysDiff <= 90) {
+        trustScore = "%75 Orta";
+        trustColor = "text-amber-400 font-bold";
+      } else {
+        trustScore = "%50 Yenileme Zamanı";
+        trustColor = "text-rose-400 font-bold";
+      }
+    }
+
+    return {
+      totalDoses: doseCountStr,
+      lastCalibStr,
+      trustScore,
+      trustColor,
+    };
+  }, [logs, selectedPump, currentSetting]);
 
   const handleTestClick = async () => {
     await onRunTest(selectedPump);
@@ -130,7 +200,7 @@ export default function CalibrationWizard({
   const isTested = testedForPump[selectedPump];
 
   return (
-    <div className="glass-panel rounded-3xl p-6 border border-cyan-500/20 shadow-2xl space-y-6">
+    <div className="glass-panel rounded-3xl p-6 border border-cyan-500/20 shadow-2xl space-y-6 animate-in fade-in duration-300">
       {/* Üst Bilgi Başlığı */}
       <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
         <div className="bg-cyan-500/20 p-3 rounded-2xl border border-cyan-500/40 text-cyan-400">
@@ -144,37 +214,108 @@ export default function CalibrationWizard({
         </div>
       </div>
 
-      {/* Pompa Seçim Kanalları (Dinamik Renkli ve İkonlu Kartlar) */}
-      <div className="space-y-2">
-        <label className="text-xs text-slate-300 font-semibold block">Kalibre Edilecek Pompa Seçimi:</label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[1, 2, 3, 4].map((id) => {
-            const setting = pumpSettings[id] || { label: `${id}. Pompa`, color: "cyan", icon: "Droplets" };
-            const IconComp = iconMap[setting.icon || "Droplets"] || Droplets;
-            const isSelected = selectedPump === id;
-            const theme = getDynamicPumpTheme(setting.color);
+      {/* ÜST DÜZEN: SOLDA POMPA SEÇİMİ VE METRİKLER, SAĞDA MEVCUT KALİBRASYON BİLGİ PANENELİ */}
+      <div className="flex flex-col lg:flex-row items-stretch gap-4">
+        {/* SOL ALAN: HIZLI METRİKLER & 4 ADET DÜZGÜN YAN YANA SEÇİM KUTUSU */}
+        <div className="shrink-0 flex flex-col justify-between space-y-2.5">
+          {/* Başlık ve Pompa İsmi */}
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-slate-300 font-semibold flex items-center gap-1.5 font-mono">
+              <Gauge className="w-3.5 h-3.5 text-cyan-400" /> Pompa Seçimi:
+            </label>
+            <span className="text-[10px] font-mono text-cyan-400 font-bold bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-500/30">
+              {currentSetting.label} (Kanal {selectedPump})
+            </span>
+          </div>
 
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => {
-                  setSelectedPump(id);
-                  setCurrentStep(1);
-                  setMeasuredMl("");
-                }}
-                className={`p-3 rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center gap-1 cursor-pointer text-center select-none active:scale-95 ${
-                  isSelected ? theme.selected : theme.default
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-full border flex items-center justify-center mb-0.5 ${theme.badge}`}>
-                  <IconComp className="w-4 h-4" />
-                </div>
-                <span className="font-bold text-xs truncate max-w-full text-slate-100">{setting.label}</span>
-                <span className="text-[10px] font-mono opacity-80">Kanal {id}</span>
-              </button>
-            );
-          })}
+          {/* 3 Adet Veritabanı Destekli İstatistik Kartı (SABİT 44px YÜKSEKLİK) */}
+          <div className="grid grid-cols-3 gap-2 text-[10px] font-mono w-full">
+            <div className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-2 h-11 min-h-[44px] flex items-center gap-1.5 overflow-hidden">
+              <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <div className="overflow-hidden min-w-0">
+                <span className="text-slate-400 block text-[9px] truncate">Son Kalibrasyon</span>
+                <span className="text-slate-200 font-bold truncate block">{pumpStats.lastCalibStr}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-2 h-11 min-h-[44px] flex items-center gap-1.5 overflow-hidden">
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <div className="overflow-hidden min-w-0">
+                <span className="text-slate-400 block text-[9px] truncate">Çalışma Sayısı</span>
+                <span className="text-slate-200 font-bold truncate block">{pumpStats.totalDoses}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-2 h-11 min-h-[44px] flex items-center gap-1.5 overflow-hidden">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <div className="overflow-hidden min-w-0">
+                <span className="text-slate-400 block text-[9px] truncate">Güvenlik</span>
+                <span className={`${pumpStats.trustColor} truncate block`}>{pumpStats.trustScore}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 4 Adet Tam Genişliğe Yayılan Eşit İri Kare Seçim Kutusu (SABİT KÜÇÜLMEYEN İDEAL BOYUT) */}
+          <div className="grid grid-cols-4 gap-2.5 w-full">
+            {[1, 2, 3, 4].map((id) => {
+              const setting = pumpSettings[id] || { label: `${id}. Pompa`, color: "cyan", icon: "Droplets" };
+              const IconComp = iconMap[setting.icon || "Droplets"] || Droplets;
+              const isSelected = selectedPump === id;
+              const theme = getDynamicPumpTheme(setting.color);
+
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedPump(id);
+                    setCurrentStep(1);
+                    setMeasuredMl("");
+                  }}
+                  className={`w-22 h-22 sm:w-24 sm:h-24 rounded-2xl border-2 transition-all duration-150 flex flex-col items-center justify-center p-1.5 gap-1 cursor-pointer text-center select-none active:scale-95 shrink-0 ${
+                    isSelected ? theme.selected : theme.default
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-xl border flex items-center justify-center shrink-0 ${theme.badge}`}>
+                    <IconComp className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="font-bold text-xs truncate max-w-full text-slate-100 font-mono leading-tight">{setting.label}</span>
+                  <span className="text-[9.5px] font-mono opacity-70">Kanal {id}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SAĞ ALAN: MEVCUT KALİBRASYON BİLGİ VE İPUCU PANENELİ (KALAN TÜM ALANI KAPLAR) */}
+        <div className="flex-1 bg-slate-950/80 border border-slate-800/90 rounded-2xl p-3.5 flex flex-col justify-between space-y-2 text-xs font-mono min-w-0">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+            <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-cyan-400" /> Pompa Kalibrasyon Bilgisi
+            </span>
+            <span className="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold">
+              Kanal {selectedPump}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+              <span className="text-slate-400 block text-[10px]">Mevcut Akış Hızı:</span>
+              <span className="text-cyan-300 font-bold font-mono text-xs">
+                {currentSetting.rate ? `${currentSetting.rate} ml/sn` : "1.000 ml/sn"}
+              </span>
+            </div>
+            <div className="bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+              <span className="text-slate-400 block text-[10px]">10sn Test Beklenen:</span>
+              <span className="text-emerald-400 font-bold font-mono text-xs">
+                ~{((currentSetting.rate || 1.0) * 10).toFixed(1)} ml
+              </span>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-slate-400 leading-tight">
+            💡 <strong className="text-slate-300">İpucu:</strong> Hassas dozajlama için her 30 günde bir veya sıvı çeşidi değiştiğinde ölçü kabı ile kalibre edin.
+          </p>
         </div>
       </div>
 
@@ -219,36 +360,39 @@ export default function CalibrationWizard({
       {/* ADIM 1: HAVA ALMA (PRIMING) */}
       {currentStep === 1 && (
         <div className="space-y-4 animate-in fade-in">
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-2">
-            <h4 className="font-bold text-cyan-400 flex items-center gap-1.5 text-sm">
+          <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
               <Droplet className="w-4 h-4" /> Adım 1: Hortum Havasını Alın
             </h4>
-            <p>
+            <p className="text-xs text-slate-300 leading-relaxed">
               Hassas bir kalibrasyon için hortumun içinde hava boşluğu bulunmamalıdır. Aşağıdaki butona basılı tutarak sıvının ölçü kabının ucuna kadar gelmesini sağlayın.
             </p>
           </div>
 
-          <button
-            type="button"
-            onMouseDown={() => onStartPriming(selectedPump)}
-            onMouseUp={() => onStopPriming(selectedPump)}
-            onMouseLeave={() => onStopPriming(selectedPump)}
-            onTouchStart={() => onStartPriming(selectedPump)}
-            onTouchEnd={() => onStopPriming(selectedPump)}
-            className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 select-none active:scale-95 cursor-pointer ${
-              primingPump === selectedPump
-                ? "bg-amber-500 text-slate-950 border border-amber-400 shadow-lg shadow-amber-950/60 animate-pulse"
-                : "bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700"
-            }`}
-          >
-            <Droplet className="w-4 h-4 text-amber-400" />
-            <span>{primingPump === selectedPump ? "Sıvı Çekiliyor..." : "Basılı Tutarak Hortum Havasını Al"}</span>
-          </button>
+          <div className="flex flex-col items-center justify-center py-6 gap-4">
+            <button
+              type="button"
+              onMouseDown={() => onStartPriming(selectedPump)}
+              onMouseUp={() => onStopPriming(selectedPump)}
+              onMouseLeave={() => onStopPriming(selectedPump)}
+              onTouchStart={() => onStartPriming(selectedPump)}
+              onTouchEnd={() => onStopPriming(selectedPump)}
+              className={`w-full max-w-sm py-4 rounded-2xl font-bold text-sm border flex items-center justify-center gap-2 transition-all shadow-lg select-none ${
+                primingPump === selectedPump
+                  ? "bg-cyan-500 text-slate-950 border-cyan-400 ring-4 ring-cyan-500/40 animate-pulse scale-95"
+                  : "bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700 hover:border-cyan-500/50"
+              }`}
+            >
+              <Droplet className={`w-5 h-5 ${primingPump === selectedPump ? "animate-bounce" : "text-cyan-400"}`} />
+              <span>{primingPump === selectedPump ? "Hava Alınıyor... (Bırakınca Durur)" : "Basılı Tutarak Hortum Havasını Al"}</span>
+            </button>
+          </div>
 
           <div className="flex justify-end pt-2">
             <button
+              type="button"
               onClick={() => setCurrentStep(2)}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-cyan-950/50 cursor-pointer"
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-cyan-950/60 transition-all cursor-pointer"
             >
               <span>Devam Et (2. Adım)</span>
               <ChevronRight className="w-4 h-4" />
@@ -257,48 +401,56 @@ export default function CalibrationWizard({
         </div>
       )}
 
-      {/* ADIM 2: 10 SANİYE TEST ÇALIŞTIR */}
+      {/* ADIM 2: 10 SN TESTİ */}
       {currentStep === 2 && (
         <div className="space-y-4 animate-in fade-in">
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-2">
-            <h4 className="font-bold text-cyan-400 flex items-center gap-1.5 text-sm">
-              <Play className="w-4 h-4 fill-current" /> Adım 2: 10 Saniyelik Test Testi Çalıştırın
+          <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
+              <Clock className="w-4 h-4" /> Adım 2: 10 Saniyelik Test Çalıştırması
             </h4>
-            <p>
-              Boş bir milimetrelik ölçü kabını hortum çıkışına yerleştirin. Butona bastığınızda pompa tam 10 saniye çalışacaktır.
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Ölçü kabını hortumun ucuna yerleştirin. Aşağıdaki butona tıkladığınızda pompa <strong>tam 10 saniye</strong> çalışacak ve duracaktır.
             </p>
           </div>
 
-          <button
-            type="button"
-            disabled={calibLoading === selectedPump || isOnline !== true}
-            onClick={handleTestClick}
-            className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/50 cursor-pointer disabled:opacity-50"
-          >
-            {calibLoading === selectedPump ? (
-              <Clock className="w-4 h-4 animate-spin text-cyan-300" />
-            ) : (
-              <>
-                <Play className="w-4 h-4 fill-current" />
-                <span>10 Saniye Testi Başlat</span>
-              </>
-            )}
-          </button>
+          <div className="flex flex-col items-center justify-center py-6 gap-4">
+            <button
+              type="button"
+              onClick={handleTestClick}
+              disabled={calibLoading === selectedPump || isOnline === false}
+              className="w-full max-w-sm py-4 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-xl shadow-cyan-950/60 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {calibLoading === selectedPump ? (
+                <>
+                  <Clock className="w-5 h-5 animate-spin text-cyan-300" />
+                  <span>10 Saniyelik Test Sürüyor...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-5 h-5 fill-current" />
+                  <span>10 Saniyelik Testi Başlat</span>
+                </>
+              )}
+            </button>
+          </div>
 
           <div className="flex justify-between pt-2">
             <button
+              type="button"
               onClick={() => setCurrentStep(1)}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
+              className="bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 border border-slate-800 cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Geri</span>
             </button>
+
             {isTested && (
               <button
+                type="button"
                 onClick={() => setCurrentStep(3)}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-cyan-950/50 cursor-pointer"
+                className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-cyan-950/60 cursor-pointer"
               >
-                <span>Ölçüme Geç (3. Adım)</span>
+                <span>Sonraki (3. Adım)</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}
@@ -306,40 +458,129 @@ export default function CalibrationWizard({
         </div>
       )}
 
-      {/* ADIM 3: ÖLÇÜLEN SIVI MİKTARINI GİR */}
+      {/* ADIM 3: ÖLÇÜM GİRMA (INTERAKTİF STEPPER + HIZLI PRESET + ELLE GİRİŞ) */}
       {currentStep === 3 && (
         <div className="space-y-4 animate-in fade-in">
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-2">
-            <h4 className="font-bold text-cyan-400 flex items-center gap-1.5 text-sm">
-              <Gauge className="w-4 h-4" /> Adım 3: Ölçü Kabındaki Biriken Sıvıyı Girin
+          <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 space-y-2">
+            <h4 className="text-sm font-bold text-cyan-300 flex items-center gap-2">
+              <Gauge className="w-4 h-4" /> Adım 3: Ölçülen Sıvı Miktarını Girin
             </h4>
-            <p>10 saniyelik test tamamlandı! Ölçü kabında biriken ml miktarını hassas olarak girin.</p>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              10 saniyelik test sonucunda dereceli kaba dolan toplam sıvı miktarını (ml cinsinden) girin veya stepper butonları ile hassasça ayarlayın.
+            </p>
           </div>
 
-          <div className="flex flex-col gap-2 bg-slate-950/90 border border-cyan-500/30 p-4 rounded-2xl">
-            <label className="text-xs text-slate-300 font-semibold">Biriken Miktar (ml):</label>
-            <input
-              type="number"
-              step="0.1"
-              min="0.1"
-              value={measuredMl}
-              onChange={(e) => setMeasuredMl(e.target.value)}
-              placeholder="Örn: 15.0"
-              className="bg-slate-900 border border-cyan-500/50 rounded-xl p-3 text-sm font-mono font-bold text-white focus:outline-none focus:border-cyan-400"
-            />
+          <div className="flex flex-col items-center justify-center py-4 gap-4">
+            <div className="w-full max-w-md space-y-3">
+              <label className="text-xs text-slate-400 font-semibold block text-center font-mono">
+                Ölçülen Sıvı Miktarı (ml):
+              </label>
 
+              {/* HIZLI SEÇİM PRESET BUTONLARI */}
+              <div className="flex flex-wrap items-center justify-center gap-2 font-mono text-xs">
+                {[5, 8, 10, 12, 15].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setMeasuredMl(preset.toString())}
+                    className={`px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                      measuredMl === preset.toString()
+                        ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/60 font-bold shadow-sm"
+                        : "bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800"
+                    }`}
+                  >
+                    {preset} ml
+                  </button>
+                ))}
+              </div>
+
+              {/* INTERAKTİF STEPPER + ELLE GİRİŞ ALANI */}
+              <div className="flex items-center justify-between gap-1.5 bg-slate-950/90 border-2 border-slate-700 focus-within:border-cyan-400 rounded-2xl p-2 shadow-xl">
+                {/* -0.5 ml Stepper */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = parseFloat(measuredMl) || 0;
+                    const next = Math.max(0.1, Math.round((current - 0.5) * 10) / 10);
+                    setMeasuredMl(next.toString());
+                  }}
+                  className="w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-cyan-400 flex items-center justify-center text-xs font-mono font-bold transition-all active:scale-95 cursor-pointer shrink-0"
+                  title="0.5 ml Azalt"
+                >
+                  -0.5
+                </button>
+
+                {/* -0.1 ml Stepper */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = parseFloat(measuredMl) || 0;
+                    const next = Math.max(0.1, Math.round((current - 0.1) * 10) / 10);
+                    setMeasuredMl(next.toString());
+                  }}
+                  className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-cyan-400 flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                  title="0.1 ml Azalt"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+
+                {/* ELLE GİRİŞ KUTUSU (Direct Keyboard Entry Input) */}
+                <div className="flex-1 relative flex items-center justify-center px-1">
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="Örn: 8.5"
+                    value={measuredMl}
+                    onChange={(e) => setMeasuredMl(e.target.value)}
+                    className="w-full bg-transparent text-center text-xl font-mono font-black text-white focus:outline-none placeholder:text-slate-600"
+                  />
+                  <span className="text-xs font-mono text-cyan-400 font-bold ml-1 pointer-events-none">ml</span>
+                </div>
+
+                {/* +0.1 ml Stepper */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = parseFloat(measuredMl) || 0;
+                    const next = Math.round(((parseFloat(measuredMl) || 0) + 0.1) * 10) / 10;
+                    setMeasuredMl(next.toString());
+                  }}
+                  className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-cyan-400 flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
+                  title="0.1 ml Arttır"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+
+                {/* +0.5 ml Stepper */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = parseFloat(measuredMl) || 0;
+                    const next = Math.round(((parseFloat(measuredMl) || 0) + 0.5) * 10) / 10;
+                    setMeasuredMl(next.toString());
+                  }}
+                  className="w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-cyan-500/50 text-cyan-400 flex items-center justify-center text-xs font-mono font-bold transition-all active:scale-95 cursor-pointer shrink-0"
+                  title="0.5 ml Arttır"
+                >
+                  +0.5
+                </button>
+              </div>
+            </div>
+
+            {/* HESAPLANAN AKIŞ HIZI ROZETİ */}
             {calculatedRate && (
-              <div className="bg-cyan-950/60 border border-cyan-500/40 p-3 rounded-xl text-xs font-mono text-cyan-300 flex items-center justify-between mt-2">
-                <span>{measuredMl} ml / 10 saniye =</span>
-                <span className="font-bold text-sm text-cyan-200">{calculatedRate} ml/sn</span>
+              <div className="bg-cyan-950/60 border border-cyan-500/40 p-3.5 rounded-2xl text-center font-mono space-y-1 animate-in zoom-in-95 w-full max-w-md">
+                <span className="text-[11px] text-slate-400 block">Hesaplanan Yeni Akış Hızı:</span>
+                <span className="text-xl font-black text-cyan-300">{calculatedRate} ml / saniye</span>
               </div>
             )}
           </div>
 
           <div className="flex justify-between pt-2">
             <button
+              type="button"
               onClick={() => setCurrentStep(2)}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
+              className="bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 border border-slate-800 cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Geri</span>
@@ -347,12 +588,15 @@ export default function CalibrationWizard({
 
             <button
               type="button"
-              disabled={!calculatedRate || calibSaving === selectedPump}
               onClick={handleSaveClick}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/50 cursor-pointer disabled:opacity-40"
+              disabled={calibSaving === selectedPump || isNaN(valNum) || valNum <= 0}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/60 disabled:opacity-50 transition-all cursor-pointer"
             >
               {calibSaving === selectedPump ? (
-                <Clock className="w-4 h-4 animate-spin" />
+                <>
+                  <Clock className="w-4 h-4 animate-spin" />
+                  <span>Kaydediliyor...</span>
+                </>
               ) : (
                 <>
                   <Save className="w-4 h-4" />
@@ -366,24 +610,30 @@ export default function CalibrationWizard({
 
       {/* ADIM 4: TAMAMLANDI */}
       {currentStep === 4 && (
-        <div className="py-6 text-center space-y-3 animate-in fade-in">
-          <div className="w-12 h-12 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400">
-            <CheckCircle2 className="w-7 h-7" />
+        <div className="space-y-4 animate-in fade-in text-center py-4">
+          <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 flex items-center justify-center mx-auto shadow-xl">
+            <CheckCircle2 className="w-10 h-10" />
           </div>
-          <h4 className="font-bold text-lg text-white">Kalibrasyon Başarıyla Kaydedildi!</h4>
-          <p className="text-xs text-slate-400 font-mono">
-            {currentSetting.label} için yeni akış hızı: <b>{currentSetting.rate.toFixed(3)} ml/sn</b>
-          </p>
 
-          <button
-            onClick={() => {
-              setCurrentStep(1);
-              setMeasuredMl("");
-            }}
-            className="mt-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold py-2.5 px-5 rounded-xl text-xs transition-colors cursor-pointer"
-          >
-            Başka Bir Pompa Kalibre Et
-          </button>
+          <div className="space-y-1">
+            <h4 className="text-lg font-bold text-slate-100">Kalibrasyon Başarıyla Tamamlandı!</h4>
+            <p className="text-xs text-slate-400 font-mono">
+              {currentSetting.label} için yeni akış hızı: <strong className="text-emerald-400">{currentSetting.rate} ml/saniye</strong> olarak güncellendi.
+            </p>
+          </div>
+
+          <div className="pt-4 flex justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentStep(1);
+                setMeasuredMl("");
+              }}
+              className="bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold px-5 py-2.5 rounded-xl text-xs border border-slate-800 cursor-pointer"
+            >
+              Yeniden Kalibre Et
+            </button>
+          </div>
         </div>
       )}
     </div>

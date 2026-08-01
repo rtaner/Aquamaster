@@ -415,10 +415,12 @@ export default function AquaMaster() {
   // Kalibrasyon Hızını Kaydetme
   const handleSaveCalibrationRate = async (pumpId: number, newRate: number) => {
     setCalibSaving(pumpId);
+    const nowIso = new Date().toISOString();
     await supabase.from("pump_settings").upsert({
       pump_id: pumpId,
       ml_per_second: newRate,
       label: pumpSettings[pumpId]?.label || `${pumpId}. Pompa`,
+      last_calibrated_at: nowIso,
     });
 
     setPumpSettings((prev) => ({
@@ -426,6 +428,7 @@ export default function AquaMaster() {
       [pumpId]: {
         ...prev[pumpId],
         rate: newRate,
+        last_calibrated_at: nowIso,
       },
     }));
 
@@ -641,6 +644,7 @@ export default function AquaMaster() {
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "calibration" && (
           <CalibrationWizard
+            logs={dosingLogs}
             pumpSettings={pumpSettings}
             isOnline={isOnline}
             calibLoading={calibLoading}

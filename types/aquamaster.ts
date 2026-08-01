@@ -7,6 +7,7 @@ export interface PumpSetting {
   max_limit_ml?: number;
   container_total_ml?: number;
   container_current_ml?: number;
+  last_calibrated_at?: string;
 }
 
 export interface DosingLog {
@@ -14,8 +15,10 @@ export interface DosingLog {
   pump_id: number;
   ml_amount: number;
   duration_seconds: number;
-  mode: "Manuel" | "Zamanlanmış";
+  mode: "Manuel" | "Zamanlayıcı";
   created_at?: string;
+  status?: "Başarılı" | "Gecikmeli" | "Hata";
+  source?: string;
 }
 
 export interface ActiveDosingState {
