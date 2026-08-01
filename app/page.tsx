@@ -20,6 +20,7 @@ import CalibrationWizard from "./components/CalibrationWizard";
 import PumpSettingsModal from "./components/PumpSettingsModal";
 import SchedulerTab from "./components/SchedulerTab";
 import DosingLogsTab from "./components/DosingLogsTab";
+import MobileBottomNav from "./components/MobileBottomNav";
 import { FileText } from "lucide-react";
 
 const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
@@ -601,7 +602,7 @@ export default function AquaMaster() {
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {/* ANA İÇERİK & TAB GEÇİŞLERİ */}
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3.5 py-4 sm:p-6 lg:p-8 pb-28 sm:pb-8 space-y-6">
         {/* Bildirim Toast Mesajı */}
         {message && (
           <div
@@ -620,8 +621,8 @@ export default function AquaMaster() {
           </div>
         )}
 
-        {/* Tab Butonları */}
-        <div className="glass-panel p-1.5 rounded-2xl flex items-center justify-between border border-cyan-500/20 max-w-3xl mx-auto">
+        {/* Tab Butonları (Masaüstü/Tablet Görünümü) */}
+        <div className="hidden sm:flex glass-panel p-1.5 rounded-2xl items-center justify-between border border-cyan-500/20 max-w-3xl mx-auto">
           {[
             { id: "manual", title: "Manuel Dozaj", icon: Droplets },
             { id: "scheduler", title: "Zamanlayıcı", icon: CalendarClock },
@@ -749,7 +750,8 @@ export default function AquaMaster() {
         onClose={() => setEditingPumpId(null)}
       />
 
-
+      {/* Mobil Uygulama Alt Gezinti Barı (Bottom Nav) */}
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
     </div>
   );
 }

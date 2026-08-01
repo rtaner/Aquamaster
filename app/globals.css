@@ -89,3 +89,27 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(56, 189, 248, 0.5);
 }
+
+/* Mobile & Safe Area Insets Helpers */
+.pb-safe {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+}
+
+.mobile-bottom-nav {
+  background: rgba(6, 11, 20, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(56, 189, 248, 0.2);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
+}
+
+/* Touch Ergonomics */
+button, input, select, a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+

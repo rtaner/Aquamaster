@@ -213,13 +213,13 @@ export default function ManualPumpCard({
           <div className="border-t border-slate-800/80 pt-3 space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-semibold text-slate-300">Dozaj Miktarı (ml):</label>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setInputMl((prev) => Math.max(1, prev - 5))}
-                  className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-1.5 rounded-lg border border-slate-700/80 text-xs cursor-pointer"
+                  className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 min-w-[36px] min-h-[36px] rounded-lg border border-slate-700/80 text-xs flex items-center justify-center cursor-pointer active:scale-95"
                 >
-                  <Minus className="w-3 h-3" />
+                  <Minus className="w-3.5 h-3.5" />
                 </button>
                 <input
                   type="number"
@@ -227,14 +227,14 @@ export default function ManualPumpCard({
                   max={setting.max_limit_ml || 200}
                   value={inputMl}
                   onChange={(e) => setInputMl(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-16 bg-slate-950 border border-slate-700/80 rounded-lg p-1 text-center font-mono font-bold text-xs text-white focus:outline-none focus:border-cyan-400"
+                  className="w-16 h-[36px] bg-slate-950 border border-slate-700/80 rounded-lg p-1 text-center font-mono font-bold text-xs text-white focus:outline-none focus:border-cyan-400"
                 />
                 <button
                   type="button"
                   onClick={() => setInputMl((prev) => prev + 5)}
-                  className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-1.5 rounded-lg border border-slate-700/80 text-xs cursor-pointer"
+                  className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 min-w-[36px] min-h-[36px] rounded-lg border border-slate-700/80 text-xs flex items-center justify-center cursor-pointer active:scale-95"
                 >
-                  <Plus className="w-3 h-3" />
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -243,7 +243,7 @@ export default function ManualPumpCard({
               type="button"
               disabled={loading || isOnline !== true}
               onClick={() => onDoseClick(setting.pump_id, inputMl)}
-              className={`w-full bg-gradient-to-r ${theme.btnGrad} text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer`}
+              className={`w-full bg-gradient-to-r ${theme.btnGrad} text-white font-bold py-3 sm:py-2.5 min-h-[48px] px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer`}
             >
               {loading ? (
                 <Clock className="w-5 h-5 animate-spin" />
