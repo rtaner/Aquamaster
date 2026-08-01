@@ -206,6 +206,7 @@ export default function AquaMaster() {
             pump_id: id,
             rate: item.ml_per_second || updated[id]?.rate || 1.0,
             label: item.label && item.label.trim() !== "" ? item.label : updated[id]?.label || `${id}. Pompa`,
+            last_calibrated_at: item.last_calibrated_at || updated[id]?.last_calibrated_at,
           };
         });
         return updated;
