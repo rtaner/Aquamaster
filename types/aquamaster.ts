@@ -41,3 +41,43 @@ export interface ScheduleItem {
   interval_days?: number;
   start_date?: string;
 }
+
+export interface TuyaDeviceState {
+  id: string;
+  name: string;
+  online: boolean;
+  isSwitchOn: boolean;
+  countdownSeconds: number;
+  switchDpCode: string;
+  countdownDpCode: string;
+  rawStatus?: Array<{ code: string; value: any }>;
+}
+
+export interface TuyaSocketChannel {
+  code: string; // e.g. switch_1, switch_2
+  label: string; // e.g. CO2 Tüpü (Solenoid Vana), Power LED 1
+  icon: "Flask" | "Sun" | "Lightbulb" | "Zap";
+  isSwitchOn: boolean;
+  countdownSeconds?: number;
+}
+
+export interface TuyaStripDeviceState {
+  id: string;
+  name: string;
+  online: boolean;
+  channels: TuyaSocketChannel[];
+}
+
+export interface TuyaSocketSchedule {
+  id: string;
+  channelCode: string; // e.g. switch_1, switch_2
+  label: string; // e.g. CO2 Tüpü, Power LED 1
+  onTime: string; // "09:00"
+  offTime: string; // "17:00"
+  isActive: boolean;
+  days?: number[]; // [1,2,3,4,5,6,0] (0 = Pazar, 1 = Pazartesi...)
+  lastExecutedAction?: string; // "on_09:00_2026-08-11"
+}
+
+
+

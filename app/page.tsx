@@ -21,6 +21,8 @@ import PumpSettingsModal from "./components/PumpSettingsModal";
 import SchedulerTab from "./components/SchedulerTab";
 import DosingLogsTab from "./components/DosingLogsTab";
 import MobileBottomNav from "./components/MobileBottomNav";
+import TuyaSocketsCard from "./components/TuyaSocketsCard";
+import TuyaSchedulerCard from "./components/TuyaSchedulerCard";
 import { FileText } from "lucide-react";
 
 const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
@@ -649,39 +651,48 @@ export default function AquaMaster() {
         </div>
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 1: MANUEL DOZAJ KARTLARI (4 KANAL) */}
+        {/* TAB 1: MANUEL DOZAJ KARTLARI (4 KANAL) & TUYA PRİZLER */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "manual" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in">
-            {[1, 2, 3, 4].map((pumpId) => {
-              const setting = pumpSettings[pumpId] || DEFAULT_PUMP_SETTINGS[pumpId];
-              const lastLog = dosingLogs.find((l) => l.pump_id === pumpId);
+          <div className="space-y-6 animate-in fade-in">
+            {/* Tuya Akıllı Prizler ve Dış Filtre Bakım Modu */}
+            <TuyaSocketsCard onNotify={bildirimGoster} />
 
-              return (
-                <ManualPumpCard
-                  key={pumpId}
-                  setting={setting}
-                  lastLog={lastLog}
-                  activeState={activeDosing[pumpId]}
-                  completedState={completedDosing[pumpId]}
-                  isOnline={isOnline}
-                  loading={loading === pumpId}
-                  primingPump={primingPump}
-                  onStartPriming={startPriming}
-                  onStopPriming={stopPriming}
-                  onDoseClick={handleRequestDose}
-                  onOpenSettings={(id) => setEditingPumpId(id)}
-                  onRefillContainer={handleRefillContainer}
-                  onDismissCompletion={(id) =>
-                    setCompletedDosing((prev) => {
-                      const next = { ...prev };
-                      delete next[id];
-                      return next;
-                    })
-                  }
-                />
-              );
-            })}
+            {/* Tuya CO2 & Power LED Otomatik Zamanlayıcıları */}
+            <TuyaSchedulerCard onNotify={bildirimGoster} />
+
+            {/* Dozaj Pompaları Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[1, 2, 3, 4].map((pumpId) => {
+                const setting = pumpSettings[pumpId] || DEFAULT_PUMP_SETTINGS[pumpId];
+                const lastLog = dosingLogs.find((l) => l.pump_id === pumpId);
+
+                return (
+                  <ManualPumpCard
+                    key={pumpId}
+                    setting={setting}
+                    lastLog={lastLog}
+                    activeState={activeDosing[pumpId]}
+                    completedState={completedDosing[pumpId]}
+                    isOnline={isOnline}
+                    loading={loading === pumpId}
+                    primingPump={primingPump}
+                    onStartPriming={startPriming}
+                    onStopPriming={stopPriming}
+                    onDoseClick={handleRequestDose}
+                    onOpenSettings={(id) => setEditingPumpId(id)}
+                    onRefillContainer={handleRefillContainer}
+                    onDismissCompletion={(id) =>
+                      setCompletedDosing((prev) => {
+                        const next = { ...prev };
+                        delete next[id];
+                        return next;
+                      })
+                    }
+                  />
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -689,14 +700,20 @@ export default function AquaMaster() {
         {/* TAB 2: ESNEK ZAMANLAYICI PROGRAMLARI */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "scheduler" && (
-          <SchedulerTab
-            schedules={schedules}
-            pumpSettings={pumpSettings}
-            onAddSchedule={handleAddSchedule}
-            onDeleteSchedule={handleDeleteSchedule}
-            onToggleSchedule={handleToggleSchedule}
-            onUpdateSchedule={handleUpdateSchedule}
-          />
+          <div className="space-y-6 animate-in fade-in">
+            {/* Tuya CO2 & Power LED Otomatik Zamanlayıcıları */}
+            <TuyaSchedulerCard onNotify={bildirimGoster} />
+
+            {/* Gübre Dozaj Pompaları Zamanlayıcısı */}
+            <SchedulerTab
+              schedules={schedules}
+              pumpSettings={pumpSettings}
+              onAddSchedule={handleAddSchedule}
+              onDeleteSchedule={handleDeleteSchedule}
+              onToggleSchedule={handleToggleSchedule}
+              onUpdateSchedule={handleUpdateSchedule}
+            />
+          </div>
         )}
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}

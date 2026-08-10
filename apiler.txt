@@ -1,0 +1,18 @@
+
+
+tuya bilgiler
+aquamaster
+Industry : Smart Home
+Creation Time : 2026-08-10 23:56:50
+Data Center : Central Europe Data Center
+Authorization KeyView Authorization
+Access ID/Client ID
+tfcruxw44ta7w5y5xsy9
+Access Secret/Client Secret
+883b91c3715b4b3499bd18dbecf22e59
+Project Code
+p1786395410984fcf8rs
+
+Device Name	Device ID	Product	Source	Online Status	Device Type	Activation Time	Device Permission	Operation
+Akıllı Çoklu Priz	bffaf90d6e41c632a9u4tt	Neutron switch strip	recaizadetaner@gmail.com/Tuya	Online	Real Device	2026-08-11 00:33:46	Controllable	Debug Device
+2 numara	bfe38c9d085605d6d0u0wa	Smart Socket	recaizadetaner@gmail.com/Tuya	Online	Real Device	2026-08-10 22:28:48	Controllable
