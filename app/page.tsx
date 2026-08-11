@@ -23,7 +23,9 @@ import DosingLogsTab from "./components/DosingLogsTab";
 import MobileBottomNav from "./components/MobileBottomNav";
 import TuyaSocketsCard from "./components/TuyaSocketsCard";
 import TuyaSchedulerCard from "./components/TuyaSchedulerCard";
-import { FileText } from "lucide-react";
+import TemperatureTab from "./components/TemperatureTab";
+import { FileText, Thermometer } from "lucide-react";
+
 
 
 const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
@@ -34,7 +36,8 @@ const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
 };
 
 export default function AquaMaster() {
-  const [activeTab, setActiveTab] = useState<"manual" | "scheduler" | "calibration" | "logs">("manual");
+  const [activeTab, setActiveTab] = useState<"manual" | "scheduler" | "temperature" | "calibration" | "logs">("manual");
+
   const [loading, setLoading] = useState<number | null>(null);
   const [calibLoading, setCalibLoading] = useState<number | null>(null);
   const [calibSaving, setCalibSaving] = useState<number | null>(null);
@@ -45,6 +48,8 @@ export default function AquaMaster() {
   const [isOnline, setIsOnline] = useState<boolean | null>(null);
   const [deviceIp, setDeviceIp] = useState<string | null>(null);
   const [lastSeenTime, setLastSeenTime] = useState<number | null>(null);
+  const [temperature, setTemperature] = useState<number | null>(null);
+
 
   // Pompalar, Loglar ve Zamanlayıcılar (SSR Uyumlu)
   const [pumpSettings, setPumpSettings] = useState<{ [key: number]: PumpSetting }>(DEFAULT_PUMP_SETTINGS);
@@ -116,6 +121,8 @@ export default function AquaMaster() {
       if (isMountedRef.current) fetchDeviceStatus();
     }, 5000);
 
+
+
     return () => {
       isMountedRef.current = false;
       clearInterval(timer);
@@ -184,9 +191,20 @@ export default function AquaMaster() {
         const lastSeen = new Date(data.last_seen).getTime();
         setLastSeenTime(lastSeen);
         if (data.ip_address) setDeviceIp(data.ip_address);
+        
+        // DS18B20 Su Sıcaklığı Verisi
+        if (data.temperature !== undefined && data.temperature !== null) {
+          const tempVal = Number(data.temperature);
+          if (!isNaN(tempVal) && tempVal > -50) {
+            setTemperature(tempVal);
+          }
+        }
+
         const now = new Date().getTime();
         const diffSec = (now - lastSeen) / 1000;
         setIsOnline(diffSec < 35);
+
+
       } else {
         setIsOnline(false);
       }
@@ -194,6 +212,7 @@ export default function AquaMaster() {
       if (isMountedRef.current) setIsOnline(false);
     }
   };
+
 
   // Pompa Ayarlarını Supabase'den Çekme ve Birleştirme
   const fetchPumpSettings = async () => {
@@ -597,10 +616,12 @@ export default function AquaMaster() {
         isOnline={isOnline}
         deviceIp={deviceIp}
         lastSeenTime={lastSeenTime}
+        temperature={temperature}
         currentTime={currentTime}
         onOpenLogs={() => setActiveTab("logs")}
         onEmergencyStop={handleEmergencyStop}
       />
+
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       {/* ANA İÇERİK & TAB GEÇİŞLERİ */}
@@ -624,13 +645,15 @@ export default function AquaMaster() {
         )}
 
         {/* Tab Butonları (Masaüstü/Tablet Görünümü) */}
-        <div className="hidden sm:flex glass-panel p-1.5 rounded-2xl items-center justify-between border border-cyan-500/20 max-w-3xl mx-auto">
+        <div className="hidden sm:flex glass-panel p-1.5 rounded-2xl items-center justify-between border border-cyan-500/20 max-w-4xl mx-auto">
           {[
             { id: "manual", title: "Manuel Dozaj", icon: Droplets },
             { id: "scheduler", title: "Zamanlayıcı", icon: CalendarClock },
+            { id: "temperature", title: "Su Sıcaklığı & Analiz", icon: Thermometer },
             { id: "calibration", title: "Kalibrasyon Sihirbazı", icon: FlaskConical },
             { id: "logs", title: "Dozaj Logları & Analizler", icon: FileText },
           ].map((tab) => {
+
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -712,6 +735,14 @@ export default function AquaMaster() {
             <TuyaSchedulerCard onNotify={bildirimGoster} />
           </div>
         )}
+
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 2.5: AKVARYUM SU SICAKLIĞI & CANLI DİNAMİK GRAFİK */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {activeTab === "temperature" && (
+          <TemperatureTab currentTemp={temperature} onNotify={bildirimGoster} />
+        )}
+
 
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}

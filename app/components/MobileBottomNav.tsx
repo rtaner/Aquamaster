@@ -1,8 +1,8 @@
 "use client";
 
-import { Droplets, CalendarClock, FlaskConical, FileText } from "lucide-react";
+import { Droplets, CalendarClock, FlaskConical, FileText, Thermometer } from "lucide-react";
 
-export type TabType = "manual" | "scheduler" | "calibration" | "logs";
+export type TabType = "manual" | "scheduler" | "temperature" | "calibration" | "logs";
 
 interface MobileBottomNavProps {
   activeTab: TabType;
@@ -13,9 +13,11 @@ export default function MobileBottomNav({ activeTab, setActiveTab }: MobileBotto
   const tabs: { id: TabType; label: string; icon: typeof Droplets }[] = [
     { id: "manual", label: "Dozaj", icon: Droplets },
     { id: "scheduler", label: "Zamanlayıcı", icon: CalendarClock },
+    { id: "temperature", label: "Sıcaklık", icon: Thermometer },
     { id: "calibration", label: "Kalibrasyon", icon: FlaskConical },
     { id: "logs", label: "Loglar", icon: FileText },
   ];
+
 
   return (
     <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 mobile-bottom-nav px-2 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] border-t border-cyan-500/20">

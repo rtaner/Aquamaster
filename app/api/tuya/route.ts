@@ -70,7 +70,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       action,
-      deviceId = FILTER_DEVICE_ID,
       durationMinutes,
       additionalMinutes,
       channelCode,
@@ -80,61 +79,63 @@ export async function POST(request: Request) {
       timerId,
     } = body;
 
-    // 1. Dış Filtre Priz Aç / Kapat
+    // Cihaz Kimliklerini Kesin Olarak Ayrıştır (Ayrışım Güvencesi)
+    const filterDeviceId = body.deviceId || FILTER_DEVICE_ID;
+    const stripDeviceId =
+      body.deviceId && body.deviceId !== FILTER_DEVICE_ID ? body.deviceId : STRIP_DEVICE_ID;
+
+    // 1. Dış Filtre Priz Aç / Kapat (Kesinlikle Filter Prizini Hedefler)
     if (action === "toggle") {
-      const device = await getDeviceStatus(deviceId);
+      const device = await getDeviceStatus(filterDeviceId);
       const nextState = !device.isSwitchOn;
       const commands = [
         { code: device.switchDpCode, value: nextState },
         ...(nextState ? [{ code: device.countdownDpCode, value: 0 }] : []),
       ];
-      await sendDeviceCommands(deviceId, commands);
+      await sendDeviceCommands(filterDeviceId, commands);
       return NextResponse.json({ success: true, newState: nextState });
     }
 
-    // 2. 4'lü Priz Spesifik Kanal Aç / Kapat (switch_1, switch_2 vs.)
+    // 2. 4'lü Priz Spesifik Kanal Aç / Kapat (Kesinlikle 4'lü Prizi Hedefler)
     if (action === "toggle_channel") {
-      const targetStripId = deviceId || STRIP_DEVICE_ID;
-      const result = await toggleStripChannel(targetStripId, channelCode, targetState);
+      const result = await toggleStripChannel(stripDeviceId, channelCode, targetState);
       return NextResponse.json(result);
     }
 
-    // 3. 4'lü Priz Tüm Kanalları Aç / Kapat
+    // 3. 4'lü Priz Tüm Kanalları Aç / Kapat (Kesinlikle 4'lü Prizi Hedefler)
     if (action === "toggle_all_strip") {
-      const targetStripId = deviceId || STRIP_DEVICE_ID;
-      const strip = await getStripStatus(targetStripId);
+      const strip = await getStripStatus(stripDeviceId);
       const commands = strip.channels.map((c) => ({
         code: c.code,
         value: Boolean(targetState),
       }));
-      await sendDeviceCommands(targetStripId, commands);
+      await sendDeviceCommands(stripDeviceId, commands);
       return NextResponse.json({ success: true, newState: targetState });
     }
 
-    // 4. Bakım Modu Başlat
+    // 4. Dış Filtre Bakım Modu Başlat (Kesinlikle Filter Prizini Hedefler)
     if (action === "start_maintenance") {
       const duration = Number(durationMinutes) || 15;
-      const result = await startFilterMaintenance(deviceId, duration);
+      const result = await startFilterMaintenance(filterDeviceId, duration);
       return NextResponse.json(result);
     }
 
-    // 5. Bakım Modunu İptal Et
+    // 5. Dış Filtre Bakım Modunu İptal Et (Kesinlikle Filter Prizini Hedefler)
     if (action === "cancel_maintenance") {
-      const result = await cancelFilterMaintenance(deviceId);
+      const result = await cancelFilterMaintenance(filterDeviceId);
       return NextResponse.json(result);
     }
 
-    // 6. Bakım Süresini Uzat
+    // 6. Dış Filtre Bakım Süresini Uzat (Kesinlikle Filter Prizini Hedefler)
     if (action === "extend_maintenance") {
       const minutes = Number(additionalMinutes) || 5;
-      const result = await extendFilterMaintenance(deviceId, minutes);
+      const result = await extendFilterMaintenance(filterDeviceId, minutes);
       return NextResponse.json(result);
     }
 
-    // 7. Donanımsal Timer Ekleme (İnternet kopsa da çalışan donanım zamanlayıcısı)
+    // 7. Donanımsal Timer Ekleme (Kesinlikle 4'lü Prizi Hedefler)
     if (action === "add_timer") {
-      const targetStripId = body.deviceId && body.deviceId !== FILTER_DEVICE_ID ? body.deviceId : STRIP_DEVICE_ID;
-      const result = await addDeviceTimer(targetStripId, {
+      const result = await addDeviceTimer(stripDeviceId, {
         time,
         code: channelCode,
         value: Boolean(targetState),
@@ -143,22 +144,18 @@ export async function POST(request: Request) {
       return NextResponse.json(result);
     }
 
-    // 7.5. Donanımsal Timer Kanalını Temizleyip Yeni Saatlerle Güncelleme (Sil ve Yaz)
+    // 7.5. Donanımsal Timer Kanalını Temizleyip Yeni Saatlerle Güncelleme (Kesinlikle 4'lü Prizi Hedefler)
     if (action === "sync_channel_timers") {
-      const targetStripId = body.deviceId && body.deviceId !== FILTER_DEVICE_ID ? body.deviceId : STRIP_DEVICE_ID;
       const { onTime, offTime } = body;
-      const result = await syncChannelTimers(targetStripId, channelCode, onTime, offTime);
+      const result = await syncChannelTimers(stripDeviceId, channelCode, onTime, offTime);
       return NextResponse.json(result);
     }
 
-    // 8. Donanımsal Timer Silme
+    // 8. Donanımsal Timer Silme (Kesinlikle 4'lü Prizi Hedefler)
     if (action === "delete_timer") {
-      const targetStripId = body.deviceId && body.deviceId !== FILTER_DEVICE_ID ? body.deviceId : STRIP_DEVICE_ID;
-      const result = await deleteDeviceTimer(targetStripId, timerId);
+      const result = await deleteDeviceTimer(stripDeviceId, timerId);
       return NextResponse.json(result);
     }
-
-
 
     return NextResponse.json({ success: false, error: "Geçersiz eylem" }, { status: 400 });
   } catch (error: any) {

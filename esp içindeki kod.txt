@@ -5,12 +5,14 @@
 #include <ArduinoJson.h>
 #include "time.h"
 #include <WebServer.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 // --- GÜVENLİK BİLGİLERİ ---
-const char* ssid = "YOUR_WIFI_SSID"; 
-const char* password = "YOUR_WIFI_PASSWORD";
-String supabaseUrl = "YOUR_SUPABASE_URL"; 
-String supabaseKey = "YOUR_SUPABASE_KEY"; 
+const char* ssid = "VODAFONE_5180"; 
+const char* password = "Taner808";
+String supabaseUrl = "https://ddensiwjrvnmhyaqgvym.supabase.co"; 
+String supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkZW5zaXdqcnZubWh5YXFndnltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0NzMwOTgsImV4cCI6MjEwMDA0OTA5OH0.zib2n_T4xBb5CYS5jjEwTk9j8eNAPupEeWr9C-CZ7hY"; 
 // ------------------------------------
 
 const char* ntpServer = "pool.ntp.org";
@@ -19,6 +21,12 @@ const int   daylightOffset_sec = 0;
 
 RTC_DS3231 rtc;
 WebServer server(80); // Lokal Web Sunucusu (Port 80)
+
+// --- DS18B20 SICAKLIK SENSÖRÜ KONFİGÜRASYONU (GPIO 4) ---
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+float suSicakligi = -127.0; // Anlık su sıcaklığı °C
 
 const int POMPA_1 = 16;
 const int POMPA_2 = 17;
@@ -49,8 +57,30 @@ int hafizadakiGorevSayisi = 0;
 // Her pompanın aynı dakika içinde birden fazla çalışmasını engelleyen bağımsız sayaçlar (0 kullanılmaz, 1-2-3-4 için)
 int sonCalisanDakika[5] = {-1, -1, -1, -1, -1}; 
 
-unsigned long sonİnternetKontrol = 0;
-unsigned long sonGorevKontrol = 0;
+// --- BAĞIMSIZ ZAMANLAYICI SAYAÇLARI ---
+unsigned long sonİnternetKontrol = 0; // Gübre Motoru & Komut Kontrolü (10 Saniyede Bir)
+unsigned long sonSicaklikKontrol = 0; // DS18B20 Su Sıcaklığı Kontrolü (5 Dakikada Bir)
+unsigned long sonGorevKontrol = 0;    // Offline Hafıza Kontrolü (Her Saniye)
+
+// --- GÜVENLİ VE ÇAKIŞMASIZ DS18B20 SICAKLIK OKUMA FONKSİYONU ---
+float sicaklikOku() {
+  sensors.requestTemperatures();
+  float temp = sensors.getTempCByIndex(0);
+
+  // Okuma anlık zamanlamaya takılırsa 150ms bekleyip 1 kez daha dene (ESP32 Timing Fix)
+  if (temp == DEVICE_DISCONNECTED_C || temp <= -50.0) {
+    delay(150);
+    sensors.requestTemperatures();
+    temp = sensors.getTempCByIndex(0);
+  }
+
+  // Geçerli okuma alındıysa global değişkeni güncelle, alınamadıysa son geçerli değeri koru
+  if (temp != DEVICE_DISCONNECTED_C && temp > -50.0) {
+    suSicakligi = temp;
+  }
+  
+  return suSicakligi;
+}
 
 // --- LOKAL HORTUM ÇEKME (PRIMING) ROUTE ---
 void handlePrime() {
@@ -107,6 +137,12 @@ void handleStop() {
 void setup() {
   Serial.begin(115200);
   delay(1000);
+
+  // DS18B20 Sıcaklık Sensörünü Başlat ve Zamanlama Ayarlarını Yap
+  sensors.begin();
+  sensors.setWaitForConversion(true); // Donanımsal ADC dönüşümünün tamamlanmasını bekle
+  sensors.setResolution(11);          // 11-bit yüksek hassasiyet ve stabil okuma
+  Serial.println("\n[SENSÖR] DS18B20 Sicaklik Sensoru Baslatildi (GPIO 4).");
 
   pinMode(POMPA_1, OUTPUT); pinMode(POMPA_2, OUTPUT); pinMode(POMPA_3, OUTPUT); pinMode(POMPA_4, OUTPUT);
   digitalWrite(POMPA_1, LOW); digitalWrite(POMPA_2, LOW); digitalWrite(POMPA_3, LOW); digitalWrite(POMPA_4, LOW);
@@ -200,6 +236,7 @@ void logEkle(int pumpId, int durationSeconds) {
   }
 }
 
+// --- ESP32 CANLILIK KALP ATIŞI SİNYALİ (Her 10 Saniyede Bir) ---
 void kalpatisiGonder() {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
@@ -210,21 +247,49 @@ void kalpatisiGonder() {
     http.addHeader("Content-Type", "application/json");
     String localIP = WiFi.localIP().toString();
     String body = "{\"last_seen\":\"now()\",\"ip_address\":\"" + localIP + "\"}";
-    int httpCode = http.PATCH(body);
-    
-    // Eğer Supabase'de ip_address sütunu yoksa ve PATCH 400 hatası verirse, yedek olarak sadece last_seen gönder!
-    if (httpCode != 200 && httpCode != 204 && httpCode != 201) {
-      HTTPClient http2;
-      http2.begin(endpoint);
-      http2.addHeader("apikey", supabaseKey);
-      http2.addHeader("Authorization", "Bearer " + supabaseKey);
-      http2.addHeader("Content-Type", "application/json");
-      http2.PATCH("{\"last_seen\":\"now()\"}");
-      http2.end();
-    }
+    http.PATCH(body);
     http.end();
   }
 }
+
+// --- DS18B20 AKVARYUM SU SICAKLIĞI GÖNDERİMİ VE LOG KAYDI (Her 5 Dakikada Bir) ---
+void sicaklikGonder() {
+  if (WiFi.status() == WL_CONNECTED) {
+    suSicakligi = sicaklikOku();
+
+    if (suSicakligi == DEVICE_DISCONNECTED_C || suSicakligi <= -50.0) {
+      Serial.println("\n[DS18B20] SENSOR BAGLANTI HATASI (Kablolari/Direnc Kontrol Edin)!");
+    } else {
+      Serial.print("\n[DS18B20 - 5 Dakikalik Kontrol] Akvaryum Su Sicakligi: ");
+      Serial.print(suSicakligi);
+      Serial.println(" °C");
+
+      // 1. Anlık durumu device_status tablosunda güncelle
+      HTTPClient http1;
+      String endpoint1 = supabaseUrl + "/rest/v1/device_status?id=eq.1";
+      http1.begin(endpoint1);
+      http1.addHeader("apikey", supabaseKey);
+      http1.addHeader("Authorization", "Bearer " + supabaseKey);
+      http1.addHeader("Content-Type", "application/json");
+      String body1 = "{\"temperature\":" + String(suSicakligi, 1) + "}";
+      http1.PATCH(body1);
+      http1.end();
+
+      // 2. Geçmiş grafiği ve analizler için temperature_logs tablosuna yeni log ekle
+      HTTPClient http2;
+      String endpoint2 = supabaseUrl + "/rest/v1/temperature_logs";
+      http2.begin(endpoint2);
+      http2.addHeader("apikey", supabaseKey);
+      http2.addHeader("Authorization", "Bearer " + supabaseKey);
+      http2.addHeader("Content-Type", "application/json");
+      http2.addHeader("Prefer", "return=minimal");
+      String body2 = "{\"temperature\":" + String(suSicakligi, 1) + "}";
+      http2.POST(body2);
+      http2.end();
+    }
+  }
+}
+
 
 void loop() {
   DateTime now = rtc.now(); 
@@ -243,7 +308,7 @@ void loop() {
     }
   } 
 
-  // --- 1. AŞAMA: İNTERNET SENKRONİZASYONU VE KALP ATIŞI (Her 10 Saniyede Bir) ---
+  // --- 1. AŞAMA: GÜBRE MOTORLARI & KOMUT SENKRONİZASYONU (Her 10 Saniyede Bir) ---
   if (millis() - sonİnternetKontrol > 10000) {
     sonİnternetKontrol = millis();
     
@@ -330,7 +395,13 @@ void loop() {
     }
   }
 
-  // --- 2. AŞAMA: OFFLINE HAFIZA KONTROLÜ VE MOTOR TETİKLEME (Her Saniye) ---
+  // --- 2. AŞAMA: DS18B20 SU SICAKLIĞI KONTROLÜ (Her 5 Dakikada Bir / 300.000 ms) ---
+  if (millis() - sonSicaklikKontrol > 300000 || sonSicaklikKontrol == 0) {
+    sonSicaklikKontrol = millis();
+    sicaklikGonder();
+  }
+
+  // --- 3. AŞAMA: OFFLINE HAFIZA KONTROLÜ VE MOTOR TETİKLEME (Her Saniye) ---
   if (millis() - sonGorevKontrol > 1000) {
     sonGorevKontrol = millis();
     

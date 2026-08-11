@@ -1,11 +1,12 @@
 "use client";
 
-import { Droplets, History, Power, Wifi, WifiOff, RefreshCw } from "lucide-react";
+import { Droplets, History, Power, Wifi, WifiOff, RefreshCw, Thermometer } from "lucide-react";
 
 interface GlobalHeaderProps {
   isOnline: boolean | null;
   deviceIp: string | null;
   lastSeenTime: number | null;
+  temperature?: number | null;
   currentTime: Date | null;
   onOpenLogs: () => void;
   onEmergencyStop: () => void;
@@ -16,6 +17,7 @@ export default function GlobalHeader({
   isOnline,
   deviceIp,
   lastSeenTime,
+  temperature,
   currentTime,
   onOpenLogs,
   onEmergencyStop,
@@ -50,44 +52,65 @@ export default function GlobalHeader({
           </div>
         </div>
 
-        {/* Orta: ESP32 Canlılık & Bağlantı Telemetrisi */}
-        <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800/80 rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-inner text-[11px] sm:text-xs">
-          {isOnline === true ? (
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="relative flex h-2 sm:h-2.5 w-2 sm:w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 sm:h-2.5 w-2 sm:w-2.5 bg-emerald-500"></span>
-              </span>
-              <div className="flex flex-col">
-                <span className="font-semibold text-emerald-400 flex items-center gap-1 text-[11px] sm:text-xs">
-                  <Wifi className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" /> <span className="hidden sm:inline">ESP32 </span>Çevrimiçi
+        {/* Orta: ESP32 Canlılık & DS18B20 Su Sıcaklığı Telemetrisi */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* ESP32 Wi-Fi Canlılık Durumu */}
+          <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800/80 rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-inner text-[11px] sm:text-xs">
+            {isOnline === true ? (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="relative flex h-2 sm:h-2.5 w-2 sm:w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 sm:h-2.5 w-2 sm:w-2.5 bg-emerald-500"></span>
                 </span>
-                {deviceIp && (
-                  <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono hidden md:inline">
-                    IP: {deviceIp} {secondsAgo !== null ? `(${secondsAgo}s önce)` : ""}
+                <div className="flex flex-col">
+                  <span className="font-semibold text-emerald-400 flex items-center gap-1 text-[11px] sm:text-xs">
+                    <Wifi className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" /> <span className="hidden sm:inline">ESP32 </span>Çevrimiçi
                   </span>
-                )}
+                  {deviceIp && (
+                    <span className="text-[9px] sm:text-[10px] text-slate-400 font-mono hidden md:inline">
+                      IP: {deviceIp} {secondsAgo !== null ? `(${secondsAgo}s önce)` : ""}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : isOnline === false ? (
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="relative flex h-2 sm:h-2.5 w-2 sm:w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 sm:h-2.5 w-2 sm:w-2.5 bg-red-500"></span>
-              </span>
+            ) : isOnline === false ? (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="relative flex h-2 sm:h-2.5 w-2 sm:w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 sm:h-2.5 w-2 sm:w-2.5 bg-red-500"></span>
+                </span>
+                <div className="flex flex-col">
+                  <span className="font-semibold text-red-400 flex items-center gap-1 text-[11px] sm:text-xs">
+                    <WifiOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-400" /> Kesildi
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-slate-400 text-[11px] sm:text-xs">
+                <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin text-cyan-400" />
+                <span className="hidden sm:inline">Kontrol Ediliyor...</span>
+              </div>
+            )}
+          </div>
+
+          {/* 🌡️ DS18B20 Akvaryum Su Sıcaklığı Rozeti */}
+          {temperature !== null && temperature !== undefined && (
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-slate-900 via-teal-950/40 to-slate-900 border border-teal-500/30 rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-[11px] sm:text-xs">
+              <div className="relative flex items-center justify-center p-1 rounded-xl bg-teal-500/20 text-teal-300">
+                <Thermometer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-400 animate-pulse" />
+              </div>
               <div className="flex flex-col">
-                <span className="font-semibold text-red-400 flex items-center gap-1 text-[11px] sm:text-xs">
-                  <WifiOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-400" /> Kesildi
+                <span className="text-[9px] sm:text-[10px] font-medium text-slate-400 leading-tight">
+                  Su Sıcaklığı
+                </span>
+                <span className="font-mono font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-300 text-xs sm:text-sm">
+                  {temperature.toFixed(1)}°C
                 </span>
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-slate-400 text-[11px] sm:text-xs">
-              <RefreshCw className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin text-cyan-400" />
-              <span className="hidden sm:inline">Bağlantı Kontrol Ediliyor...</span>
             </div>
           )}
         </div>
+
 
         {/* Sağ Taraf: Saat, E-STOP & Log Butonu */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">

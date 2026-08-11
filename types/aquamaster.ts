@@ -78,8 +78,16 @@ export interface TuyaSocketSchedule {
   offTime: string; // "17:00"
   isActive: boolean;
   days?: number[]; // [1,2,3,4,5,6,0] (0 = Pazar, 1 = Pazartesi...)
-  lastExecutedAction?: string; // "on_09:00_2026-08-11"
+  lastExecutedAction?: string;
 }
+
+export interface TemperatureLog {
+  id?: number;
+  temperature: number;
+  created_at?: string;
+}
+
+
 
 
 

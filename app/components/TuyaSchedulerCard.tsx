@@ -161,6 +161,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 action: "toggle_channel",
+                deviceId: "bffaf90d6e41c632a9u4tt",
                 channelCode: item.channelCode,
                 targetState: true,
               }),
@@ -182,6 +183,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 action: "toggle_channel",
+                deviceId: "bffaf90d6e41c632a9u4tt",
                 channelCode: item.channelCode,
                 targetState: false,
               }),
@@ -194,6 +196,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
             );
           } catch (e) {}
         }
+
       }
     };
 
