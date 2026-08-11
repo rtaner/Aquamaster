@@ -117,7 +117,11 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
 
   useEffect(() => {
     fetchSchedulesFromSupabase();
+    // 5 saniyede bir Supabase veritabanından otomatik tazeleme
+    const interval = setInterval(fetchSchedulesFromSupabase, 5000);
+    return () => clearInterval(interval);
   }, []);
+
 
   // 2. Timeline için aynı kanaldaki/prizdeki programları tek satırda birleştirme
   const groupedTimeline = useMemo(() => {
@@ -536,8 +540,9 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
                   <div className="flex items-center justify-between pt-3 text-xs">
                     <div className="flex items-center gap-4">
                       <div>
-                        <span className="text-[10px] text-slate-500 block uppercase font-semibold">
-                          Açılış Saati
+                        <span className="text-[10px] text-slate-500 flex items-center gap-1 uppercase font-semibold">
+                          <Database className="w-2.5 h-2.5 text-emerald-400" />
+                          Açılış Saati (DB)
                         </span>
                         <span className="font-mono text-emerald-400 font-bold text-sm">
                           {item.onTime}
@@ -547,14 +552,16 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
                       <div className="text-slate-600 font-mono">→</div>
 
                       <div>
-                        <span className="text-[10px] text-slate-500 block uppercase font-semibold">
-                          Kapanış Saati
+                        <span className="text-[10px] text-slate-500 flex items-center gap-1 uppercase font-semibold">
+                          <Database className="w-2.5 h-2.5 text-rose-400" />
+                          Kapanış Saati (DB)
                         </span>
                         <span className="font-mono text-rose-400 font-bold text-sm">
                           {item.offTime}
                         </span>
                       </div>
                     </div>
+
 
                     <div className="flex items-center gap-1.5">
                       <button
