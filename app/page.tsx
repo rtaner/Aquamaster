@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
-import { 
-  Droplets, 
-  Clock, 
-  CalendarClock, 
-  FlaskConical, 
-  CheckCircle2, 
+import {
+  Droplets,
+  Clock,
+  CalendarClock,
+  FlaskConical,
+  CheckCircle2,
   AlertCircle,
   ShieldCheck,
   Power
@@ -24,6 +24,7 @@ import MobileBottomNav from "./components/MobileBottomNav";
 import TuyaSocketsCard from "./components/TuyaSocketsCard";
 import TuyaSchedulerCard from "./components/TuyaSchedulerCard";
 import { FileText } from "lucide-react";
+
 
 const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
   1: { pump_id: 1, rate: 1.0, label: "Gübre A", color: "cyan", icon: "Droplets", max_limit_ml: 50, container_total_ml: 1000, container_current_ml: 850 },
@@ -86,7 +87,7 @@ export default function AquaMaster() {
         const parsed = JSON.parse(saved);
         setPumpSettings((prev) => ({ ...prev, ...parsed }));
       }
-    } catch (e) {}
+    } catch (e) { }
     setIsLoaded(true);
   }, []);
 
@@ -95,7 +96,7 @@ export default function AquaMaster() {
     if (!isLoaded) return;
     try {
       localStorage.setItem("aquamaster_pump_settings", JSON.stringify(pumpSettings));
-    } catch (e) {}
+    } catch (e) { }
   }, [pumpSettings, isLoaded]);
 
   // Sayfa Yüklendiğinde ve Aralıklarla Verileri Çek
@@ -264,7 +265,7 @@ export default function AquaMaster() {
     setPrimingPump(pumpId);
 
     // İlk anlık açma sinyali — DÜZ FETCH (AbortController yok, anında gider)
-    fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=on`, { mode: "no-cors" }).catch(() => {});
+    fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=on`, { mode: "no-cors" }).catch(() => { });
 
     // Heartbeat için paylaşımlı AbortController (bırakınca hepsi birden iptal edilecek)
     const heartbeatAc = new AbortController();
@@ -276,7 +277,7 @@ export default function AquaMaster() {
         fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=on`, {
           mode: "no-cors",
           signal: heartbeatAc.signal,
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }, 250);
 
@@ -306,7 +307,7 @@ export default function AquaMaster() {
 
     // 3. Tek kapatma sinyali — DÜZ FETCH (kuyruk temizlendikten SONRA gider)
     if (deviceIp && pumpId !== null) {
-      fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=off`, { mode: "no-cors" }).catch(() => {});
+      fetch(`http://${deviceIp}/prime?pump=${pumpId}&state=off`, { mode: "no-cors" }).catch(() => { });
     }
   };
 
@@ -436,9 +437,9 @@ export default function AquaMaster() {
     // 3. ESP32 lokal HTTP sinyali gönder (Tüm pompaları kesmek için 3 kez teyitli kapatma sinyali)
     if (deviceIp) {
       for (let p = 1; p <= 4; p++) {
-        fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => {});
-        setTimeout(() => fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => {}), 100);
-        setTimeout(() => fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => {}), 250);
+        fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => { });
+        setTimeout(() => fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => { }), 100);
+        setTimeout(() => fetch(`http://${deviceIp}/prime?pump=${p}&state=off`, { mode: "no-cors" }).catch(() => { }), 250);
       }
     }
 
@@ -608,11 +609,10 @@ export default function AquaMaster() {
         {/* Bildirim Toast Mesajı */}
         {message && (
           <div
-            className={`p-4 rounded-2xl border text-xs font-semibold flex items-center gap-3 animate-in slide-in-from-top-4 shadow-xl ${
-              message.type === "success"
+            className={`p-4 rounded-2xl border text-xs font-semibold flex items-center gap-3 animate-in slide-in-from-top-4 shadow-xl ${message.type === "success"
                 ? "bg-emerald-950/80 border-emerald-500/50 text-emerald-300"
                 : "bg-red-950/80 border-red-500/50 text-red-300"
-            }`}
+              }`}
           >
             {message.type === "success" ? (
               <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
@@ -637,11 +637,10 @@ export default function AquaMaster() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  isActive
+                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${isActive
                     ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-950/50"
                     : "text-slate-400 hover:text-white hover:bg-slate-900/50"
-                }`}
+                  }`}
               >
                 <Icon className="w-4 h-4" />
                 <span className="truncate">{tab.title}</span>
@@ -651,18 +650,11 @@ export default function AquaMaster() {
         </div>
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 1: MANUEL DOZAJ KARTLARI (4 KANAL) & TUYA PRİZLER */}
+        {/* TAB 1: MANUEL DOZAJ KARTLARI (4 KANAL) & TUYA AKILLI PRİZLER */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "manual" && (
-          <div className="space-y-6 animate-in fade-in">
-            {/* Tuya Akıllı Prizler ve Dış Filtre Bakım Modu */}
-            <TuyaSocketsCard onNotify={bildirimGoster} />
-
-            {/* Tuya CO2 & Power LED Otomatik Zamanlayıcıları */}
-            <TuyaSchedulerCard onNotify={bildirimGoster} />
-
-            {/* Dozaj Pompaları Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in">
               {[1, 2, 3, 4].map((pumpId) => {
                 const setting = pumpSettings[pumpId] || DEFAULT_PUMP_SETTINGS[pumpId];
                 const lastLog = dosingLogs.find((l) => l.pump_id === pumpId);
@@ -693,6 +685,12 @@ export default function AquaMaster() {
                 );
               })}
             </div>
+
+            {/* Tuya Akıllı Priz & Dış Filtre Kontrol Kartları */}
+            <TuyaSocketsCard onNotify={bildirimGoster} />
+
+            {/* Tuya CO2 & Power LED Otomatik Zamanlayıcı Kartı */}
+            <TuyaSchedulerCard onNotify={bildirimGoster} />
           </div>
         )}
 
@@ -700,11 +698,7 @@ export default function AquaMaster() {
         {/* TAB 2: ESNEK ZAMANLAYICI PROGRAMLARI */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "scheduler" && (
-          <div className="space-y-6 animate-in fade-in">
-            {/* Tuya CO2 & Power LED Otomatik Zamanlayıcıları */}
-            <TuyaSchedulerCard onNotify={bildirimGoster} />
-
-            {/* Gübre Dozaj Pompaları Zamanlayıcısı */}
+          <div className="space-y-6">
             <SchedulerTab
               schedules={schedules}
               pumpSettings={pumpSettings}
@@ -713,8 +707,12 @@ export default function AquaMaster() {
               onToggleSchedule={handleToggleSchedule}
               onUpdateSchedule={handleUpdateSchedule}
             />
+
+            {/* Tuya CO2 & Power LED Otomatik Zamanlayıcı Kartı */}
+            <TuyaSchedulerCard onNotify={bildirimGoster} />
           </div>
         )}
+
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {/* TAB 3: ADIM ADIM KALİBRASYON SİHİRBAZI */}

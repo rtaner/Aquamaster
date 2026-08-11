@@ -41,18 +41,6 @@ export interface ScheduleItem {
   interval_days?: number;
   start_date?: string;
 }
-
-export interface TuyaDeviceState {
-  id: string;
-  name: string;
-  online: boolean;
-  isSwitchOn: boolean;
-  countdownSeconds: number;
-  switchDpCode: string;
-  countdownDpCode: string;
-  rawStatus?: Array<{ code: string; value: any }>;
-}
-
 export interface TuyaSocketChannel {
   code: string; // e.g. switch_1, switch_2
   label: string; // e.g. CO2 Tüpü (Solenoid Vana), Power LED 1
@@ -61,7 +49,21 @@ export interface TuyaSocketChannel {
   countdownSeconds?: number;
 }
 
+export interface TuyaDeviceState {
+  id: string;
+  name: string;
+  online: boolean;
+  isSwitchOn: boolean;
+  isFilterRunning: boolean;
+  filterCountdownSeconds: number;
+  countdownSeconds?: number;
+  maintenanceMode: boolean;
+}
+
+
+
 export interface TuyaStripDeviceState {
+
   id: string;
   name: string;
   online: boolean;

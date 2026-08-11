@@ -431,6 +431,53 @@ export async function deleteDeviceTimer(deviceId: string = STRIP_DEVICE_ID, time
   return data;
 }
 
+/**
+ * Bir kanalın (örn: switch_1, switch_4) eski zamanlayıcılarını silip yeni saatleri (Açılış/Kapanış) yazar.
+ * Tuya mobil uygulamasındaki eski saati (örn: 19:00) siler ve yeni saati (örn: 20:00) yazar!
+ */
+export async function syncChannelTimers(
+  deviceId: string = STRIP_DEVICE_ID,
+  channelCode: string,
+  onTime: string,
+  offTime: string
+) {
+  try {
+    const existing = await getDeviceTimers(deviceId);
+    const timersList = Array.isArray(existing?.result) ? existing.result : [];
+
+    const targetCategory = `category_${channelCode}`;
+    const toDeleteIds = timersList
+      .filter(
+        (t: any) =>
+          t.category === targetCategory ||
+          (t.functions && t.functions.some((f: any) => f.code === channelCode))
+      )
+      .map((t: any) => t.timer_id);
+
+    if (toDeleteIds.length > 0) {
+      await deleteDeviceTimer(deviceId, toDeleteIds.join(","));
+    }
+
+    const onRes = await addDeviceTimer(deviceId, {
+      time: onTime,
+      code: channelCode,
+      value: true,
+    });
+
+    const offRes = await addDeviceTimer(deviceId, {
+      time: offTime,
+      code: channelCode,
+      value: false,
+    });
+
+    return { success: true, onRes, offRes };
+  } catch (e: any) {
+    console.error("syncChannelTimers error:", e);
+    throw e;
+  }
+}
+
+
 
 
 

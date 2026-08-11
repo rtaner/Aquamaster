@@ -247,8 +247,9 @@ export default function TuyaSocketsCard({ onNotify }: TuyaSocketsCardProps) {
   };
 
   const isMaintenanceActive = Boolean(
-    filterDevice && !filterDevice.isSwitchOn && filterDevice.countdownSeconds > 0
+    filterDevice && !filterDevice.isSwitchOn && (filterDevice.countdownSeconds || 0) > 0
   );
+
 
   return (
     <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-8">
@@ -379,7 +380,8 @@ export default function TuyaSocketsCard({ onNotify }: TuyaSocketsCardProps) {
                       <Clock className="w-6 h-6 text-amber-400 animate-pulse" />
                       <div>
                         <div className="text-2xl font-mono font-bold text-amber-400 tracking-wider">
-                          {formatCountdown(filterDevice.countdownSeconds)}
+                          {formatCountdown(filterDevice.countdownSeconds || 0)}
+
                         </div>
                         <div className="text-[10px] text-slate-400 uppercase">
                           Kalan Süre
@@ -407,7 +409,8 @@ export default function TuyaSocketsCard({ onNotify }: TuyaSocketsCardProps) {
 
                     <button
                       onClick={handleExtendMaintenance}
-                      disabled={actionLoading === "extend_maintenance" || filterDevice.countdownSeconds >= 1500}
+                      disabled={actionLoading === "extend_maintenance" || (filterDevice.countdownSeconds || 0) >= 1500}
+
                       className="bg-amber-600/80 hover:bg-amber-500 text-white font-semibold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                       title="Süreyi 5 Dakika Uzat (Maks 30 Dakika)"
                     >

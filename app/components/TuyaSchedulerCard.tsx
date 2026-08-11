@@ -202,7 +202,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
     return () => clearInterval(interval);
   }, [schedules, onNotify]);
 
-  // ⚡ TÜM PROGRAMLARI TUYA CİHAZINA SENKRONİZE ET
+  // ⚡ TÜM PROGRAMLARI TUYA CİHAZINA SENKRONİZE ET (Eski Saatleri Sil & Yenisini Yaz)
   const handleSyncAllToTuya = async () => {
     setSaving(true);
     try {
@@ -210,27 +210,14 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
       for (const item of schedules) {
         if (!item.isActive) continue;
 
-        // Açılış Zamanlayıcısı (ON)
         await fetch("/api/tuya", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            action: "add_timer",
+            action: "sync_channel_timers",
             channelCode: item.channelCode,
-            time: item.onTime,
-            targetState: true,
-          }),
-        });
-
-        // Kapanış Zamanlayıcısı (OFF)
-        await fetch("/api/tuya", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "add_timer",
-            channelCode: item.channelCode,
-            time: item.offTime,
-            targetState: false,
+            onTime: item.onTime,
+            offTime: item.offTime,
           }),
         });
 
@@ -238,7 +225,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
       }
 
       onNotify?.(
-        `⚡ ${activeCount} adet aktif zamanlayıcı programı Tuya 4'lü priz cihazına başarıyla senkronize edildi!`,
+        `⚡ ${activeCount} adet zamanlayıcı programı Tuya 4'lü priz donanımına başarıyla senkronize edildi ve güncellendi!`,
         "success"
       );
     } catch (e: any) {
@@ -248,7 +235,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
     }
   };
 
-  // Program Ekle / Güncelle (Doğrudan tuya_schedules Tablosuna Yazar)
+  // Program Ekle / Güncelle (Doğrudan tuya_schedules Tablosuna Yazar ve Tuya'da Eski Saati Siler)
   const handleSaveSchedule = async (schedule: TuyaSocketSchedule) => {
     setSaving(true);
     try {
@@ -276,32 +263,21 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
 
       await fetchSchedulesFromSupabase();
 
-      // Tuya Cihazına Da Senkronize Et
+      // Tuya Cihazına Da Senkronize Et (Eski saati sil ve yeni saati yaz)
       if (schedule.isActive) {
         await fetch("/api/tuya", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            action: "add_timer",
+            action: "sync_channel_timers",
             channelCode: schedule.channelCode,
-            time: schedule.onTime,
-            targetState: true,
-          }),
-        });
-
-        await fetch("/api/tuya", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "add_timer",
-            channelCode: schedule.channelCode,
-            time: schedule.offTime,
-            targetState: false,
+            onTime: schedule.onTime,
+            offTime: schedule.offTime,
           }),
         });
       }
 
-      onNotify?.(`${schedule.label} programı tuya_schedules veritabanına kaydedildi!`, "success");
+      onNotify?.(`${schedule.label} programı veritabanına kaydedildi ve Tuya cihazında güncellendi!`, "success");
       setEditingSchedule(null);
     } catch (e: any) {
       onNotify?.(`Veritabanı kaydetme hatası: ${e.message}`, "error");
@@ -309,6 +285,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
       setSaving(false);
     }
   };
+
 
   // Program Sil (tuya_schedules Tablosundan Sil)
   const handleDeleteSchedule = async (id: string) => {

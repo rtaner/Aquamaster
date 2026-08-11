@@ -10,11 +10,12 @@ import {
   getDeviceTimers,
   getDeviceTimersTest,
   addDeviceTimer,
-
   deleteDeviceTimer,
+  syncChannelTimers,
   FILTER_DEVICE_ID,
   STRIP_DEVICE_ID,
 } from "@/lib/tuya";
+
 
 export async function GET(request: Request) {
   try {
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
 
     // 7. Donanımsal Timer Ekleme (İnternet kopsa da çalışan donanım zamanlayıcısı)
     if (action === "add_timer") {
-      const targetStripId = deviceId || STRIP_DEVICE_ID;
+      const targetStripId = body.deviceId && body.deviceId !== FILTER_DEVICE_ID ? body.deviceId : STRIP_DEVICE_ID;
       const result = await addDeviceTimer(targetStripId, {
         time,
         code: channelCode,
@@ -142,12 +143,22 @@ export async function POST(request: Request) {
       return NextResponse.json(result);
     }
 
+    // 7.5. Donanımsal Timer Kanalını Temizleyip Yeni Saatlerle Güncelleme (Sil ve Yaz)
+    if (action === "sync_channel_timers") {
+      const targetStripId = body.deviceId && body.deviceId !== FILTER_DEVICE_ID ? body.deviceId : STRIP_DEVICE_ID;
+      const { onTime, offTime } = body;
+      const result = await syncChannelTimers(targetStripId, channelCode, onTime, offTime);
+      return NextResponse.json(result);
+    }
+
     // 8. Donanımsal Timer Silme
     if (action === "delete_timer") {
-      const targetStripId = deviceId || STRIP_DEVICE_ID;
+      const targetStripId = body.deviceId && body.deviceId !== FILTER_DEVICE_ID ? body.deviceId : STRIP_DEVICE_ID;
       const result = await deleteDeviceTimer(targetStripId, timerId);
       return NextResponse.json(result);
     }
+
+
 
     return NextResponse.json({ success: false, error: "Geçersiz eylem" }, { status: 400 });
   } catch (error: any) {
