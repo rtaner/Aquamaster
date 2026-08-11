@@ -386,17 +386,16 @@ export async function getDeviceTimersTest(deviceId: string, customPath: string) 
 }
 
 /**
- * Cihazın Tuya Donanımsal Zamanlayıcılarını Çekme
+ * Cihazın Tuya Donanımsal Zamanlayıcılarını Çekme (Tuya Cloud Timer API v2.0)
  */
-
 export async function getDeviceTimers(deviceId: string = STRIP_DEVICE_ID) {
-  const data = await tuyaRequest("GET", `/v1.0/devices/${deviceId}/timers`);
+  const data = await tuyaRequest("GET", `/v2.0/cloud/timer/device/${deviceId}`);
   return data;
 }
 
 /**
- * Cihaza Donanımsal Zamanlayıcı Ekleme
- * İnternet kopsa dahi cihazın çiğinde çalışır!
+ * Cihaza Donanımsal Zamanlayıcı Ekleme (Tuya Cloud Timer API v2.0)
+ * İnternet kopsa dahi priz cihazının donanım hafızasında çalışır!
  */
 export async function addDeviceTimer(
   deviceId: string = STRIP_DEVICE_ID,
@@ -408,7 +407,7 @@ export async function addDeviceTimer(
   }
 ) {
   const body = {
-    category: "default",
+    category: `category_${params.code}`,
     loops: params.loops || "1111111",
     timezone_id: "Europe/Istanbul",
     time: params.time,
@@ -420,17 +419,18 @@ export async function addDeviceTimer(
     ],
   };
 
-  const data = await tuyaRequest("POST", `/v1.0/devices/${deviceId}/timers`, body);
+  const data = await tuyaRequest("POST", `/v2.0/cloud/timer/device/${deviceId}`, body);
   return data;
 }
 
 /**
- * Cihazdan Donanımsal Zamanlayıcı Silme
+ * Cihazdan Donanımsal Zamanlayıcı Silme (Tuya Cloud Timer API v2.0)
  */
 export async function deleteDeviceTimer(deviceId: string = STRIP_DEVICE_ID, timerId: string) {
-  const data = await tuyaRequest("DELETE", `/v1.0/devices/${deviceId}/timers/${timerId}`);
+  const data = await tuyaRequest("DELETE", `/v2.0/cloud/timer/device/${deviceId}/batch?timer_ids=${timerId}`);
   return data;
 }
+
 
 
 
