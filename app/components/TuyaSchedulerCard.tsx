@@ -25,82 +25,41 @@ interface TuyaSchedulerCardProps {
 
 const DEFAULT_SCHEDULES = [
   {
-    pump_id: 101,
-    run_time: "09:00:00",
-    duration_seconds: 28800, // 09:00 - 17:00
+    channel_code: "switch_1",
+    label: "CO2 Tüpü (Solenoid Vana)",
+    on_time: "09:00",
+    off_time: "17:00",
     is_active: true,
-    schedule_type: "daily",
-    is_one_time: false,
   },
   {
-    pump_id: 102,
-    run_time: "10:00:00",
-    duration_seconds: 28800, // 10:00 - 18:00
+    channel_code: "switch_2",
+    label: "Power LED 1",
+    on_time: "10:00",
+    off_time: "18:00",
     is_active: true,
-    schedule_type: "daily",
-    is_one_time: false,
   },
   {
-    pump_id: 103,
-    run_time: "10:30:00",
-    duration_seconds: 27000, // 10:30 - 18:00
+    channel_code: "switch_3",
+    label: "Power LED 2",
+    on_time: "10:30",
+    off_time: "18:00",
     is_active: true,
-    schedule_type: "daily",
-    is_one_time: false,
   },
   {
-    pump_id: 104,
-    run_time: "11:00:00",
-    duration_seconds: 23400, // 11:00 - 17:30
+    channel_code: "switch_4",
+    label: "Power LED 3",
+    on_time: "11:00",
+    off_time: "17:30",
     is_active: true,
-    schedule_type: "daily",
-    is_one_time: false,
   },
 ];
 
 const CHANNEL_OPTIONS = [
-  { code: "switch_1", pumpId: 101, label: "CO2 Tüpü (Solenoid Vana)", icon: FlaskConical },
-  { code: "switch_2", pumpId: 102, label: "Power LED 1", icon: Sun },
-  { code: "switch_3", pumpId: 103, label: "Power LED 2", icon: Sun },
-  { code: "switch_4", pumpId: 104, label: "Power LED 3", icon: Sun },
+  { code: "switch_1", label: "CO2 Tüpü (Solenoid Vana)", icon: FlaskConical },
+  { code: "switch_2", label: "Power LED 1", icon: Sun },
+  { code: "switch_3", label: "Power LED 2", icon: Sun },
+  { code: "switch_4", label: "Power LED 3", icon: Sun },
 ];
-
-function channelCodeToPumpId(code: string): number {
-  switch (code) {
-    case "switch_1": return 101;
-    case "switch_2": return 102;
-    case "switch_3": return 103;
-    case "switch_4": return 104;
-    default: return 101;
-  }
-}
-
-function pumpIdToChannelInfo(pumpId: number): { code: string; label: string } {
-  switch (pumpId) {
-    case 101: return { code: "switch_1", label: "CO2 Tüpü (Solenoid Vana)" };
-    case 102: return { code: "switch_2", label: "Power LED 1" };
-    case 103: return { code: "switch_3", label: "Power LED 2" };
-    case 104: return { code: "switch_4", label: "Power LED 3" };
-    default: return { code: "switch_1", label: "CO2 Tüpü (Solenoid Vana)" };
-  }
-}
-
-function calculateDurationSeconds(onTime: string, offTime: string): number {
-  const [onH, onM] = onTime.split(":").map(Number);
-  const [offH, offM] = offTime.split(":").map(Number);
-  let onMin = onH * 60 + onM;
-  let offMin = offH * 60 + offM;
-  if (offMin < onMin) offMin += 1440;
-  return (offMin - onMin) * 60;
-}
-
-function calculateOffTime(onTime: string, durationSeconds: number): string {
-  const [onH, onM] = onTime.split(":").map(Number);
-  const totalMin = (onH * 60 + onM + Math.floor(durationSeconds / 60)) % 1440;
-  const offH = Math.floor(totalMin / 60);
-  const offM = totalMin % 60;
-  return `${offH.toString().padStart(2, "0")}:${offM.toString().padStart(2, "0")}`;
-}
 
 export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) {
   const [schedules, setSchedules] = useState<TuyaSocketSchedule[]>([]);
@@ -108,62 +67,48 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
   const [saving, setSaving] = useState<boolean>(false);
   const [editingSchedule, setEditingSchedule] = useState<TuyaSocketSchedule | null>(null);
 
-  // 1. Supabase Veritabanından Zamanlayıcıları Çekme
+  // 1. Supabase tuya_schedules Tablosundan Verileri Çekme
   const fetchSchedulesFromSupabase = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from("schedules")
+        .from("tuya_schedules")
         .select("*")
-        .gte("pump_id", 101)
-        .lte("pump_id", 104)
         .order("id", { ascending: true });
 
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const mapped: TuyaSocketSchedule[] = data.map((row: any) => {
-          const info = pumpIdToChannelInfo(row.pump_id);
-          const onTime = row.run_time ? row.run_time.substring(0, 5) : "09:00";
-          const offTime = calculateOffTime(onTime, row.duration_seconds || 28800);
-
-          return {
-            id: String(row.id),
-            channelCode: info.code,
-            label: info.label,
-            onTime,
-            offTime,
-            isActive: Boolean(row.is_active),
-          };
-        });
+        const mapped: TuyaSocketSchedule[] = data.map((row: any) => ({
+          id: String(row.id),
+          channelCode: row.channel_code,
+          label: row.label,
+          onTime: row.on_time ? row.on_time.substring(0, 5) : "09:00",
+          offTime: row.off_time ? row.off_time.substring(0, 5) : "17:00",
+          isActive: Boolean(row.is_active),
+        }));
         setSchedules(mapped);
       } else {
-        // Veritabanı boşsa varsayılan programları Supabase'e ekle (Seed)
+        // Tablo boşsa varsayılan programları tuya_schedules tablosuna tohumla (Seed)
         const { data: inserted, error: seedError } = await supabase
-          .from("schedules")
+          .from("tuya_schedules")
           .insert(DEFAULT_SCHEDULES)
           .select();
 
         if (!seedError && inserted) {
-          const mapped: TuyaSocketSchedule[] = inserted.map((row: any) => {
-            const info = pumpIdToChannelInfo(row.pump_id);
-            const onTime = row.run_time ? row.run_time.substring(0, 5) : "09:00";
-            const offTime = calculateOffTime(onTime, row.duration_seconds || 28800);
-
-            return {
-              id: String(row.id),
-              channelCode: info.code,
-              label: info.label,
-              onTime,
-              offTime,
-              isActive: Boolean(row.is_active),
-            };
-          });
+          const mapped: TuyaSocketSchedule[] = inserted.map((row: any) => ({
+            id: String(row.id),
+            channelCode: row.channel_code,
+            label: row.label,
+            onTime: row.on_time ? row.on_time.substring(0, 5) : "09:00",
+            offTime: row.off_time ? row.off_time.substring(0, 5) : "17:00",
+            isActive: Boolean(row.is_active),
+          }));
           setSchedules(mapped);
         }
       }
     } catch (e: any) {
-      console.error("Supabase Tuya schedules fetch error:", e);
+      console.error("tuya_schedules fetch error:", e);
       onNotify?.(`Veritabanı bağlantı hatası: ${e.message}`, "error");
     } finally {
       setLoading(false);
@@ -299,28 +244,29 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
     }
   };
 
-  // Program Ekle / Güncelle (Doğrudan Supabase Veritabanına Yazar)
+  // Program Ekle / Güncelle (Doğrudan tuya_schedules Tablosuna Yazar)
   const handleSaveSchedule = async (schedule: TuyaSocketSchedule) => {
     setSaving(true);
     try {
-      const pumpId = channelCodeToPumpId(schedule.channelCode);
-      const durationSec = calculateDurationSeconds(schedule.onTime, schedule.offTime);
       const isNumericId = !isNaN(Number(schedule.id)) && Number(schedule.id) > 0;
 
       const payload: any = {
-        pump_id: pumpId,
-        run_time: `${schedule.onTime}:00`,
-        duration_seconds: durationSec,
+        channel_code: schedule.channelCode,
+        label: schedule.label,
+        on_time: schedule.onTime,
+        off_time: schedule.offTime,
         is_active: schedule.isActive,
-        schedule_type: "daily",
-        is_one_time: false,
       };
 
       if (isNumericId) {
         payload.id = Number(schedule.id);
       }
 
-      const { data, error } = await supabase.from("schedules").upsert(payload).select().single();
+      const { data, error } = await supabase
+        .from("tuya_schedules")
+        .upsert(payload)
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -351,7 +297,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
         });
       }
 
-      onNotify?.(`${schedule.label} programı Supabase veritabanına kaydedildi ve senkronize edildi!`, "success");
+      onNotify?.(`${schedule.label} programı tuya_schedules veritabanına kaydedildi!`, "success");
       setEditingSchedule(null);
     } catch (e: any) {
       onNotify?.(`Veritabanı kaydetme hatası: ${e.message}`, "error");
@@ -360,22 +306,22 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
     }
   };
 
-  // Program Sil (Supabase'den Sil)
+  // Program Sil (tuya_schedules Tablosundan Sil)
   const handleDeleteSchedule = async (id: string) => {
     try {
       const numericId = Number(id);
       if (!isNaN(numericId)) {
-        const { error } = await supabase.from("schedules").delete().eq("id", numericId);
+        const { error } = await supabase.from("tuya_schedules").delete().eq("id", numericId);
         if (error) throw error;
       }
       setSchedules((prev) => prev.filter((s) => s.id !== id));
-      onNotify?.("Zamanlayıcı programı Supabase veritabanından silindi.", "success");
+      onNotify?.("Zamanlayıcı programı tuya_schedules veritabanından silindi.", "success");
     } catch (e: any) {
       onNotify?.(`Silme hatası: ${e.message}`, "error");
     }
   };
 
-  // Program Aktif/Pasif Toggle (Supabase'de Güncelle)
+  // Program Aktif/Pasif Toggle (tuya_schedules Tablosunda Güncelle)
   const handleToggleActive = async (id: string) => {
     const targetItem = schedules.find((s) => s.id === id);
     if (!targetItem) return;
@@ -390,7 +336,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
       const numericId = Number(id);
       if (!isNaN(numericId)) {
         const { error } = await supabase
-          .from("schedules")
+          .from("tuya_schedules")
           .update({ is_active: nextState })
           .eq("id", numericId);
         if (error) throw error;
@@ -423,11 +369,11 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
               </h3>
               <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1">
                 <Database className="w-3 h-3" />
-                Supabase DB Bağlı
+                tuya_schedules DB Bağlı
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Canlı Veritabanı & Fotosentez Zaman Senkronizasyonu
+              Müstakil Tuya Veritabanı & Fotosentez Zaman Senkronizasyonu
             </p>
           </div>
         </div>
@@ -477,7 +423,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
       {loading && schedules.length === 0 ? (
         <div className="flex items-center justify-center py-10 text-slate-400 text-sm gap-2">
           <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
-          Supabase veritabanından zamanlayıcılar yükleniyor...
+          tuya_schedules veritabanından yükleniyor...
         </div>
       ) : (
         <>
@@ -566,7 +512,7 @@ export default function TuyaSchedulerCard({ onNotify }: TuyaSchedulerCardProps) 
                       <div>
                         <h4 className="font-bold text-white text-sm">{item.label}</h4>
                         <span className="text-[10px] font-mono text-slate-400">
-                          Soket: {item.channelCode} • DB ID: {item.id}
+                          Soket: {item.channelCode} • ID: {item.id}
                         </span>
                       </div>
                     </div>
