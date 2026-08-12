@@ -294,8 +294,9 @@ export default function TuyaSocketsCard({ onNotify }: TuyaSocketsCardProps) {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                  Ana Priz (Dış Filtre)
+                  Dış Filtre
                 </span>
+
                 <span
                   className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     filterDevice.online

@@ -841,10 +841,11 @@ export default function AquaMaster() {
         )}
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 1: GÜBRE & DOZAJ KARTLARI (4 KANAL) */}
+        {/* TAB 1: GÜBRE & DOZAJ KARTLARI (4 KANAL) VE GÜBRE ZAMANLAYICI PROGRAMLARI */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "manual" && (
           <div className="space-y-6">
+            {/* Manuel Dozajlama Kartları */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in">
               {[1, 2, 3, 4].map((pumpId) => {
                 const setting = pumpSettings[pumpId] || DEFAULT_PUMP_SETTINGS[pumpId];
@@ -876,8 +877,19 @@ export default function AquaMaster() {
                 );
               })}
             </div>
+
+            {/* Otomatik Gübre Dozaj Programlama Çizelgesi */}
+            <SchedulerTab
+              schedules={schedules}
+              pumpSettings={pumpSettings}
+              onAddSchedule={handleAddSchedule}
+              onDeleteSchedule={handleDeleteSchedule}
+              onToggleSchedule={handleToggleSchedule}
+              onUpdateSchedule={handleUpdateSchedule}
+            />
           </div>
         )}
+
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {/* TAB 2: PRİZLER & AYDINLATMA (TUYA DIŞ FİLTRE, CO2 & LED'LER) */}
