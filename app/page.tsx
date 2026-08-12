@@ -10,8 +10,15 @@ import {
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
-  Power
+  Power,
+  LayoutDashboard,
+  Zap,
+  Thermometer,
+  Scale,
+  FileText,
+  BarChart3,
 } from "lucide-react";
+
 import { PumpSetting, DosingLog, ActiveDosingState, ScheduleItem } from "@/types/aquamaster";
 import GlobalHeader from "./components/GlobalHeader";
 import ManualPumpCard from "./components/ManualPumpCard";
@@ -24,7 +31,10 @@ import MobileBottomNav from "./components/MobileBottomNav";
 import TuyaSocketsCard from "./components/TuyaSocketsCard";
 import TuyaSchedulerCard from "./components/TuyaSchedulerCard";
 import TemperatureTab from "./components/TemperatureTab";
-import { FileText, Thermometer } from "lucide-react";
+
+import DashboardTab from "./components/DashboardTab";
+import AnalyticsTab from "./components/AnalyticsTab";
+import { TuyaStripDeviceState, TuyaDeviceState, TuyaSocketSchedule } from "@/types/aquamaster";
 
 
 
@@ -36,7 +46,8 @@ const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
 };
 
 export default function AquaMaster() {
-  const [activeTab, setActiveTab] = useState<"manual" | "scheduler" | "temperature" | "calibration" | "logs">("manual");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "manual" | "sockets" | "temperature" | "calibration" | "logs">("dashboard");
+
 
   const [loading, setLoading] = useState<number | null>(null);
   const [calibLoading, setCalibLoading] = useState<number | null>(null);
@@ -49,6 +60,134 @@ export default function AquaMaster() {
   const [deviceIp, setDeviceIp] = useState<string | null>(null);
   const [lastSeenTime, setLastSeenTime] = useState<number | null>(null);
   const [temperature, setTemperature] = useState<number | null>(null);
+
+  // Tuya Cihazları ve Zamanlayıcı State'leri
+  const [filterDevice, setFilterDevice] = useState<TuyaDeviceState | null>(null);
+  const [stripDevice, setStripDevice] = useState<TuyaStripDeviceState | null>(null);
+  const [tuyaSchedules, setTuyaSchedules] = useState<TuyaSocketSchedule[]>([]);
+
+  // Tuya Cihazları ve Zamanlayıcılarını Çekme
+  const fetchTuyaStatusAndSchedules = async () => {
+    try {
+      const res = await fetch("/api/tuya");
+      const data = await res.json();
+      if (data.success && isMountedRef.current) {
+        if (data.filterDevice) setFilterDevice(data.filterDevice);
+        if (data.stripDevice) setStripDevice(data.stripDevice);
+      }
+    } catch (e) {}
+
+    try {
+      const { data } = await supabase.from("tuya_schedules").select("*");
+      if (data && isMountedRef.current) {
+        const formatted: TuyaSocketSchedule[] = data.map((item: any) => ({
+          id: String(item.id),
+          channelCode: item.channel_code,
+          label: item.label,
+          onTime: item.on_time,
+          offTime: item.off_time,
+          isActive: item.is_active,
+        }));
+        setTuyaSchedules(formatted);
+      }
+    } catch (e) {}
+  };
+
+  const handleToggleFilter = async () => {
+    if (!filterDevice) return;
+    const targetState = !filterDevice.isSwitchOn;
+    setFilterDevice((prev) => (prev ? { ...prev, isSwitchOn: targetState } : null));
+
+    try {
+      const res = await fetch("/api/tuya", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "toggle" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        bildirimGoster(`Dış filtre prizi ${data.newState ? "AÇILDI" : "KAPATILDI"}.`, "success");
+      }
+    } catch (e: any) {
+      bildirimGoster(`Hata: ${e.message}`, "error");
+    }
+  };
+
+  const handleStartMaintenance = async (minutes: number = 15) => {
+    try {
+      const res = await fetch("/api/tuya", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start_maintenance", durationMinutes: minutes }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        bildirimGoster(`Dış filtre ${minutes} dakikalık bakım moduna alındı.`, "success");
+        fetchTuyaStatusAndSchedules();
+      }
+    } catch (e: any) {
+      bildirimGoster(`Hata: ${e.message}`, "error");
+    }
+  };
+
+  const handleToggleStripChannel = async (channelCode: string, label: string, currentState: boolean) => {
+    const targetState = !currentState;
+    setStripDevice((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        channels: prev.channels.map((ch) => (ch.code === channelCode ? { ...ch, isSwitchOn: targetState } : ch)),
+      };
+    });
+
+    try {
+      const res = await fetch("/api/tuya", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle_channel",
+          deviceId: stripDevice?.id || "bffaf90d6e41c632a9u4tt",
+          channelCode,
+          targetState,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        bildirimGoster(`${label} ${targetState ? "AÇILDI" : "KAPATILDI"}.`, "success");
+      }
+    } catch (e: any) {
+      bildirimGoster(`Hata: ${e.message}`, "error");
+    }
+  };
+
+  const handleToggleAllStrip = async (targetState: boolean) => {
+    setStripDevice((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        channels: prev.channels.map((ch) => ({ ...ch, isSwitchOn: targetState })),
+      };
+    });
+
+    try {
+      const res = await fetch("/api/tuya", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle_all_strip",
+          deviceId: stripDevice?.id || "bffaf90d6e41c632a9u4tt",
+          targetState,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        bildirimGoster(`4'lü prizdeki tüm soketler ${targetState ? "AÇILDI" : "KAPATILDI"}.`, "success");
+      }
+    } catch (e: any) {
+      bildirimGoster(`Hata: ${e.message}`, "error");
+    }
+  };
+
 
 
   // Pompalar, Loglar ve Zamanlayıcılar (SSR Uyumlu)
@@ -113,13 +252,18 @@ export default function AquaMaster() {
     fetchSchedules();
     fetchDeviceStatus();
     fetchDosingLogs();
+    fetchTuyaStatusAndSchedules();
 
     const timer = setInterval(() => {
       if (isMountedRef.current) setCurrentTime(new Date());
     }, 1000);
     const statusTimer = setInterval(() => {
-      if (isMountedRef.current) fetchDeviceStatus();
+      if (isMountedRef.current) {
+        fetchDeviceStatus();
+        fetchTuyaStatusAndSchedules();
+      }
     }, 5000);
+
 
 
 
@@ -647,11 +791,11 @@ export default function AquaMaster() {
         {/* Tab Butonları (Masaüstü/Tablet Görünümü) */}
         <div className="hidden sm:flex glass-panel p-1.5 rounded-2xl items-center justify-between border border-cyan-500/20 max-w-4xl mx-auto">
           {[
-            { id: "manual", title: "Manuel Dozaj", icon: Droplets },
-            { id: "scheduler", title: "Zamanlayıcı", icon: CalendarClock },
-            { id: "temperature", title: "Su Sıcaklığı & Analiz", icon: Thermometer },
-            { id: "calibration", title: "Kalibrasyon Sihirbazı", icon: FlaskConical },
-            { id: "logs", title: "Dozaj Logları & Analizler", icon: FileText },
+            { id: "dashboard", title: "Ana Ekran", icon: LayoutDashboard },
+            { id: "manual", title: "Gübre & Dozaj", icon: Droplets },
+            { id: "sockets", title: "Prizler & Aydınlatma", icon: Zap },
+            { id: "calibration", title: "Kalibrasyon Sihirbazı", icon: Scale },
+            { id: "temperature", title: "Analiz", icon: BarChart3 },
           ].map((tab) => {
 
             const Icon = tab.icon;
@@ -660,12 +804,12 @@ export default function AquaMaster() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${isActive
+                className={`flex-1 py-3 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${isActive
                     ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-950/50"
                     : "text-slate-400 hover:text-white hover:bg-slate-900/50"
                   }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4 shrink-0" />
                 <span className="truncate">{tab.title}</span>
               </button>
             );
@@ -673,7 +817,31 @@ export default function AquaMaster() {
         </div>
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 1: MANUEL DOZAJ KARTLARI (4 KANAL) & TUYA AKILLI PRİZLER */}
+        {/* TAB 0: MOBİL VE MASAÜSTÜ YÖNETİCİ ÖZET PANELİ (DASHBOARD) */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {activeTab === "dashboard" && (
+          <DashboardTab
+            temperature={temperature}
+            isOnline={isOnline}
+            deviceIp={deviceIp}
+            lastSeenTime={lastSeenTime}
+            currentTime={currentTime}
+            filterDevice={filterDevice}
+            stripDevice={stripDevice}
+            tuyaSchedules={tuyaSchedules}
+            pumpSettings={pumpSettings}
+            dosingLogs={dosingLogs}
+            onNavigateTab={setActiveTab as any}
+            onToggleFilter={handleToggleFilter}
+            onStartMaintenance={handleStartMaintenance}
+            onToggleChannel={handleToggleStripChannel}
+            onToggleAllStrip={handleToggleAllStrip}
+            onNotify={bildirimGoster}
+          />
+        )}
+
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 1: GÜBRE & DOZAJ KARTLARI (4 KANAL) */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "manual" && (
           <div className="space-y-6">
@@ -708,7 +876,14 @@ export default function AquaMaster() {
                 );
               })}
             </div>
+          </div>
+        )}
 
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 2: PRİZLER & AYDINLATMA (TUYA DIŞ FİLTRE, CO2 & LED'LER) */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {activeTab === "sockets" && (
+          <div className="space-y-6">
             {/* Tuya Akıllı Priz & Dış Filtre Kontrol Kartları */}
             <TuyaSocketsCard onNotify={bildirimGoster} />
 
@@ -718,35 +893,21 @@ export default function AquaMaster() {
         )}
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 2: ESNEK ZAMANLAYICI PROGRAMLARI */}
+        {/* TAB 3: AKVARYUM ANALİZLERİ (SU SICAKLIĞI & GÜBRELEME LOGLARI İKİLİ TAB) */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {activeTab === "scheduler" && (
-          <div className="space-y-6">
-            <SchedulerTab
-              schedules={schedules}
-              pumpSettings={pumpSettings}
-              onAddSchedule={handleAddSchedule}
-              onDeleteSchedule={handleDeleteSchedule}
-              onToggleSchedule={handleToggleSchedule}
-              onUpdateSchedule={handleUpdateSchedule}
-            />
-
-            {/* Tuya CO2 & Power LED Otomatik Zamanlayıcı Kartı */}
-            <TuyaSchedulerCard onNotify={bildirimGoster} />
-          </div>
+        {(activeTab === "temperature" || activeTab === "logs") && (
+          <AnalyticsTab
+            temperature={temperature}
+            logs={dosingLogs}
+            logsLoading={logsLoading}
+            pumpSettings={pumpSettings}
+            onRefreshLogs={fetchDosingLogs}
+            onNotify={bildirimGoster}
+          />
         )}
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 2.5: AKVARYUM SU SICAKLIĞI & CANLI DİNAMİK GRAFİK */}
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {activeTab === "temperature" && (
-          <TemperatureTab currentTemp={temperature} onNotify={bildirimGoster} />
-        )}
-
-
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 3: ADIM ADIM KALİBRASYON SİHİRBAZI */}
+        {/* TAB 4: ADIM ADIM KALİBRASYON SİHİRBAZI */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "calibration" && (
           <CalibrationWizard
@@ -763,17 +924,8 @@ export default function AquaMaster() {
           />
         )}
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 4: DOZAJ LOGLARI & ANALİZLER */}
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {activeTab === "logs" && (
-          <DosingLogsTab
-            logs={dosingLogs}
-            logsLoading={logsLoading}
-            pumpSettings={pumpSettings}
-            onRefreshLogs={fetchDosingLogs}
-          />
-        )}
+
+
       </main>
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}

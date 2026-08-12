@@ -1,8 +1,8 @@
 "use client";
 
-import { Droplets, CalendarClock, FlaskConical, FileText, Thermometer } from "lucide-react";
+import { LayoutDashboard, Droplets, Zap, BarChart3, Settings } from "lucide-react";
 
-export type TabType = "manual" | "scheduler" | "temperature" | "calibration" | "logs";
+export type TabType = "dashboard" | "manual" | "sockets" | "temperature" | "calibration" | "logs";
 
 interface MobileBottomNavProps {
   activeTab: TabType;
@@ -11,12 +11,14 @@ interface MobileBottomNavProps {
 
 export default function MobileBottomNav({ activeTab, setActiveTab }: MobileBottomNavProps) {
   const tabs: { id: TabType; label: string; icon: typeof Droplets }[] = [
+    { id: "dashboard", label: "Ana Sayfa", icon: LayoutDashboard },
     { id: "manual", label: "Dozaj", icon: Droplets },
-    { id: "scheduler", label: "Zamanlayıcı", icon: CalendarClock },
-    { id: "temperature", label: "Sıcaklık", icon: Thermometer },
-    { id: "calibration", label: "Kalibrasyon", icon: FlaskConical },
-    { id: "logs", label: "Loglar", icon: FileText },
+    { id: "sockets", label: "Otomasyon", icon: Zap },
+    { id: "temperature", label: "Analiz", icon: BarChart3 },
+    { id: "calibration", label: "Ayarlar", icon: Settings },
   ];
+
+
 
 
   return (
