@@ -169,26 +169,29 @@ export default function DashboardTab({
           return (
             <div
               onClick={() => onToggleChannel("switch_1", "CO₂ Solenoid Vana", isOn)}
-              className={`glass-panel p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-lg ${
-                isOn ? "border-emerald-500/40 bg-slate-900/90" : "border-slate-800 bg-slate-950/60"
+              className={`glass-panel p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-lg relative overflow-hidden ${
+                isOn ? "card-glow-emerald bg-slate-900/90" : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
               }`}
             >
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`p-1.5 sm:p-2 rounded-xl border ${isOn ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
-                    <FlaskConical className="w-4 h-4 sm:w-5 sm:h-5" />
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 sm:p-2 rounded-xl border transition-all ${isOn ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                      <FlaskConical className={`w-4 h-4 sm:w-5 sm:h-5 ${isOn ? "animate-pulse" : ""}`} />
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      CO₂
+                    </span>
                   </div>
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    CO₂
-                  </span>
+                  {isOn && <span className="w-2 h-2 rounded-full bg-emerald-400 status-beacon-pulse" title="Etkin" />}
                 </div>
 
-                <div className={`text-base sm:text-lg font-black my-1 ${isOn ? "text-emerald-400" : "text-slate-500"}`}>
+                <div className={`text-base sm:text-lg font-black my-1 flex items-center gap-1.5 ${isOn ? "text-emerald-400" : "text-slate-500"}`}>
                   {isOn ? "AÇIK" : "KAPALI"}
                 </div>
               </div>
 
-              <div className="mt-2 pt-2 border-t border-slate-800">
+              <div className="mt-2 pt-2 border-t border-slate-800/80">
                 <div className="text-[9px] sm:text-[10px] text-slate-400 font-medium">{durationInfo.label}</div>
                 <div className="text-xs sm:text-sm font-extrabold text-white font-mono">{durationInfo.value}</div>
               </div>
@@ -199,26 +202,69 @@ export default function DashboardTab({
         {/* KART 3: DIŞ FİLTRE */}
         <div
           onClick={onToggleFilter}
-          className={`glass-panel p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-lg ${
-            filterDevice?.isSwitchOn ? "border-emerald-500/40 bg-slate-900/90" : "border-slate-800 bg-slate-950/60"
+          className={`glass-panel p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between shadow-lg relative overflow-hidden group ${
+            filterDevice?.isSwitchOn ? "card-glow-cyan bg-slate-900/90" : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
           }`}
         >
+          {/* Fluval FX Serisi İkonik Dış Filtre Silüeti Arka Plan Filigranı */}
+          <div className="absolute -right-3 -bottom-4 opacity-[0.09] pointer-events-none text-cyan-400 select-none transition-all duration-500 group-hover:opacity-[0.16] group-hover:scale-105">
+            <svg width="95" height="115" viewBox="0 0 100 120" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              {/* Üst AquaStop Vanaları & Click-Fit Hortumlar */}
+              <path d="M 34 16 V 5 M 34 5 C 34 2, 24 2, 24 2" />
+              <path d="M 66 16 V 5 M 66 5 C 66 2, 76 2, 76 2" />
+              <rect x="29" y="10" width="10" height="5" rx="2" fill="currentColor" fillOpacity="0.4" />
+              <rect x="61" y="10" width="10" height="5" rx="2" fill="currentColor" fillOpacity="0.4" />
+
+              {/* Fluval FX Ağır Hizmet Tipi Yuvarlak Üst Kapak */}
+              <rect x="18" y="16" width="64" height="12" rx="4" fill="currentColor" fillOpacity="0.25" />
+
+              {/* Çevresel 8-Cıvatalı Kilitleme Klipsleri (Swing-Lock Clamps) */}
+              <rect x="13" y="17" width="6" height="10" rx="1.5" fill="currentColor" fillOpacity="0.6" />
+              <rect x="81" y="17" width="6" height="10" rx="1.5" fill="currentColor" fillOpacity="0.6" />
+              <rect x="24" y="24" width="4" height="6" rx="1" fill="currentColor" fillOpacity="0.4" />
+              <rect x="72" y="24" width="4" height="6" rx="1" fill="currentColor" fillOpacity="0.4" />
+
+              {/* Fluval FX Geniş Kova Gövdesi */}
+              <path d="M 16 28 H 84 V 92 C 84 97, 76 101, 68 101 H 32 C 24 101, 16 97, 16 92 Z" fill="currentColor" fillOpacity="0.12" />
+
+              {/* Yan Tutma Kaburgaları (Side Ribs / Handles) */}
+              <path d="M 11 36 V 76 M 89 36 V 76" strokeWidth="2.5" />
+              <line x1="11" y1="36" x2="16" y2="36" />
+              <line x1="11" y1="76" x2="16" y2="76" />
+              <line x1="84" y1="36" x2="89" y2="36" />
+              <line x1="84" y1="76" x2="89" y2="76" />
+
+              {/* Konsantrik İç Sepet Katmanları */}
+              <rect x="24" y="36" width="52" height="16" rx="3" strokeDasharray="3 2" />
+              <rect x="24" y="56" width="52" height="16" rx="3" strokeDasharray="3 2" />
+              <rect x="24" y="76" width="52" height="16" rx="3" strokeDasharray="3 2" />
+
+              {/* Fluval FX Alt Smart Pump Motor Tabanı & Tahliye Vanası */}
+              <path d="M 22 101 H 78 V 109 C 78 113, 72 115, 64 115 H 36 C 28 115, 22 113, 22 109 Z" fill="currentColor" fillOpacity="0.3" />
+              <path d="M 50 101 V 117" />
+              <circle cx="50" cy="115" r="2.5" fill="currentColor" />
+            </svg>
+          </div>
+
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`p-1.5 sm:p-2 rounded-xl border ${filterDevice?.isSwitchOn ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
-                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="flex items-center justify-between mb-2 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 sm:p-2 rounded-xl border transition-all ${filterDevice?.isSwitchOn ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm shadow-cyan-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                  <ShieldCheck className={`w-4 h-4 sm:w-5 sm:h-5 ${filterDevice?.isSwitchOn ? "animate-pulse" : ""}`} />
+                </div>
+                <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
+                  DIŞ FİLTRE
+                </span>
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
-                DIŞ FİLTRE
-              </span>
+              {filterDevice?.isSwitchOn && <span className="w-2 h-2 rounded-full bg-cyan-400 status-beacon-pulse" title="Sirkülasyon Aktif" />}
             </div>
 
-            <div className={`text-base sm:text-lg font-black my-1 ${filterDevice?.isSwitchOn ? "text-emerald-400" : "text-slate-500"}`}>
+            <div className={`text-base sm:text-lg font-black my-1 flex items-center gap-1.5 relative z-10 ${filterDevice?.isSwitchOn ? "text-cyan-400" : "text-slate-500"}`}>
               {filterDevice?.isSwitchOn ? "AÇIK" : "KAPALI"}
             </div>
           </div>
 
-          <div className="mt-2 pt-2 border-t border-slate-800">
+          <div className="mt-2 pt-2 border-t border-slate-800/80 relative z-10">
             <div className="text-[9px] sm:text-[10px] text-slate-400 font-medium">Durum</div>
             <div className="text-xs sm:text-sm font-extrabold text-white">
               {filterDevice?.maintenanceMode ? "Bakımda" : filterDevice?.isSwitchOn ? "Çalışıyor" : "Durdu"}
@@ -236,31 +282,34 @@ export default function DashboardTab({
             <div
               onClick={() => onToggleChannel("switch_2", "Power LED 1", isOn)}
               className={`glass-panel p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden shadow-lg ${
-                isOn ? "border-purple-500/40 bg-slate-900/90" : "border-slate-800 bg-slate-950/60"
+                isOn ? "card-glow-purple bg-slate-900/90" : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
               }`}
             >
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`p-1.5 sm:p-2 rounded-xl border ${isOn ? "bg-purple-500/20 text-purple-300 border-purple-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
-                    <Sun className="w-4 h-4 sm:w-5 sm:h-5" />
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 sm:p-2 rounded-xl border transition-all ${isOn ? "bg-purple-500/20 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                      <Sun className={`w-4 h-4 sm:w-5 sm:h-5 ${isOn ? "animate-pulse" : ""}`} />
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
+                      POWER LED 1
+                    </span>
                   </div>
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
-                    POWER LED 1
-                  </span>
+                  {isOn && <span className="w-2 h-2 rounded-full bg-purple-400 status-beacon-pulse" title="Işık Açık" />}
                 </div>
 
-                <div className={`text-base sm:text-lg font-black my-1 ${isOn ? "text-emerald-400" : "text-slate-500"}`}>
+                <div className={`text-base sm:text-lg font-black my-1 flex items-center gap-1.5 ${isOn ? "text-purple-400" : "text-slate-500"}`}>
                   {isOn ? "AÇIK" : "KAPALI"}
                 </div>
               </div>
 
-              <div className="mt-2 pt-2 border-t border-slate-800">
+              <div className="mt-2 pt-2 border-t border-slate-800/80">
                 <div className="text-[9px] sm:text-[10px] text-slate-400 font-medium">{durationInfo.label}</div>
                 <div className="text-xs sm:text-sm font-extrabold text-white font-mono">{durationInfo.value}</div>
               </div>
 
               {/* Alt Akzent Işıltı Çubuğu (Purple) */}
-              <div className={`absolute bottom-0 left-2 right-2 h-1 rounded-full ${isOn ? "bg-purple-500 shadow-[0_0_8px_#a855f7]" : "bg-slate-800"}`} />
+              <div className={`absolute bottom-0 left-2 right-2 h-1 rounded-full ${isOn ? "bg-purple-500 shadow-[0_0_12px_#a855f7]" : "bg-slate-800"}`} />
             </div>
           );
         })()}
@@ -275,31 +324,34 @@ export default function DashboardTab({
             <div
               onClick={() => onToggleChannel("switch_3", "Power LED 2", isOn)}
               className={`glass-panel p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden shadow-lg ${
-                isOn ? "border-amber-500/40 bg-slate-900/90" : "border-slate-800 bg-slate-950/60"
+                isOn ? "card-glow-amber bg-slate-900/90" : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
               }`}
             >
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`p-1.5 sm:p-2 rounded-xl border ${isOn ? "bg-amber-500/20 text-amber-300 border-amber-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
-                    <Sun className="w-4 h-4 sm:w-5 sm:h-5" />
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 sm:p-2 rounded-xl border transition-all ${isOn ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                      <Sun className={`w-4 h-4 sm:w-5 sm:h-5 ${isOn ? "animate-pulse" : ""}`} />
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
+                      POWER LED 2
+                    </span>
                   </div>
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
-                    POWER LED 2
-                  </span>
+                  {isOn && <span className="w-2 h-2 rounded-full bg-amber-400 status-beacon-pulse" title="Işık Açık" />}
                 </div>
 
-                <div className={`text-base sm:text-lg font-black my-1 ${isOn ? "text-emerald-400" : "text-slate-500"}`}>
+                <div className={`text-base sm:text-lg font-black my-1 flex items-center gap-1.5 ${isOn ? "text-amber-400" : "text-slate-500"}`}>
                   {isOn ? "AÇIK" : "KAPALI"}
                 </div>
               </div>
 
-              <div className="mt-2 pt-2 border-t border-slate-800">
+              <div className="mt-2 pt-2 border-t border-slate-800/80">
                 <div className="text-[9px] sm:text-[10px] text-slate-400 font-medium">{durationInfo.label}</div>
                 <div className="text-xs sm:text-sm font-extrabold text-white font-mono">{durationInfo.value}</div>
               </div>
 
               {/* Alt Akzent Işıltı Çubuğu (Amber/Orange) */}
-              <div className={`absolute bottom-0 left-2 right-2 h-1 rounded-full ${isOn ? "bg-amber-500 shadow-[0_0_8px_#f59e0b]" : "bg-slate-800"}`} />
+              <div className={`absolute bottom-0 left-2 right-2 h-1 rounded-full ${isOn ? "bg-amber-500 shadow-[0_0_12px_#f59e0b]" : "bg-slate-800"}`} />
             </div>
           );
         })()}
@@ -314,31 +366,34 @@ export default function DashboardTab({
             <div
               onClick={() => onToggleChannel("switch_4", "Power LED 3", isOn)}
               className={`glass-panel p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden shadow-lg ${
-                isOn ? "border-blue-500/40 bg-slate-900/90" : "border-slate-800 bg-slate-950/60"
+                isOn ? "card-glow-blue bg-slate-900/90" : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
               }`}
             >
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`p-1.5 sm:p-2 rounded-xl border ${isOn ? "bg-blue-500/20 text-blue-300 border-blue-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
-                    <Sun className="w-4 h-4 sm:w-5 sm:h-5" />
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className={`p-1.5 sm:p-2 rounded-xl border transition-all ${isOn ? "bg-blue-500/20 text-blue-300 border-blue-500/40 shadow-sm shadow-blue-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
+                      <Sun className={`w-4 h-4 sm:w-5 sm:h-5 ${isOn ? "animate-pulse" : ""}`} />
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
+                      POWER LED 3
+                    </span>
                   </div>
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
-                    POWER LED 3
-                  </span>
+                  {isOn && <span className="w-2 h-2 rounded-full bg-blue-400 status-beacon-pulse" title="Işık Açık" />}
                 </div>
 
-                <div className={`text-base sm:text-lg font-black my-1 ${isOn ? "text-emerald-400" : "text-slate-500"}`}>
+                <div className={`text-base sm:text-lg font-black my-1 flex items-center gap-1.5 ${isOn ? "text-blue-400" : "text-slate-500"}`}>
                   {isOn ? "AÇIK" : "KAPALI"}
                 </div>
               </div>
 
-              <div className="mt-2 pt-2 border-t border-slate-800">
+              <div className="mt-2 pt-2 border-t border-slate-800/80">
                 <div className="text-[9px] sm:text-[10px] text-slate-400 font-medium">{durationInfo.label}</div>
                 <div className="text-xs sm:text-sm font-extrabold text-white font-mono">{durationInfo.value}</div>
               </div>
 
               {/* Alt Akzent Işıltı Çubuğu (Blue) */}
-              <div className={`absolute bottom-0 left-2 right-2 h-1 rounded-full ${isOn ? "bg-blue-500 shadow-[0_0_8px_#3b82f6]" : "bg-slate-800"}`} />
+              <div className={`absolute bottom-0 left-2 right-2 h-1 rounded-full ${isOn ? "bg-blue-500 shadow-[0_0_12px_#3b82f6]" : "bg-slate-800"}`} />
             </div>
           );
         })()}

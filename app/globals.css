@@ -59,6 +59,92 @@ body {
   50% { box-shadow: 0 0 30px rgba(239, 68, 68, 0.9), inset 0 0 20px rgba(239, 68, 68, 0.6); }
 }
 
+/* Aktif Cihaz Kartları İçin Neon Glow & Circulation Pulse Animasyonları */
+@keyframes glow-emerald {
+  0%, 100% {
+    box-shadow: 0 0 15px -2px rgba(16, 185, 129, 0.35), inset 0 0 14px -2px rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 28px 3px rgba(16, 185, 129, 0.6), inset 0 0 20px 0px rgba(16, 185, 129, 0.28);
+    border-color: rgba(52, 211, 153, 0.85);
+  }
+}
+
+@keyframes glow-cyan {
+  0%, 100% {
+    box-shadow: 0 0 15px -2px rgba(6, 182, 212, 0.35), inset 0 0 14px -2px rgba(6, 182, 212, 0.15);
+    border-color: rgba(6, 182, 212, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 28px 3px rgba(6, 182, 212, 0.6), inset 0 0 20px 0px rgba(6, 182, 212, 0.28);
+    border-color: rgba(34, 211, 238, 0.85);
+  }
+}
+
+@keyframes glow-purple {
+  0%, 100% {
+    box-shadow: 0 0 15px -2px rgba(168, 85, 247, 0.35), inset 0 0 14px -2px rgba(168, 85, 247, 0.15);
+    border-color: rgba(168, 85, 247, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 28px 3px rgba(168, 85, 247, 0.6), inset 0 0 20px 0px rgba(168, 85, 247, 0.28);
+    border-color: rgba(192, 132, 252, 0.85);
+  }
+}
+
+@keyframes glow-amber {
+  0%, 100% {
+    box-shadow: 0 0 15px -2px rgba(245, 158, 11, 0.35), inset 0 0 14px -2px rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 28px 3px rgba(245, 158, 11, 0.6), inset 0 0 20px 0px rgba(245, 158, 11, 0.28);
+    border-color: rgba(251, 191, 36, 0.85);
+  }
+}
+
+@keyframes glow-blue {
+  0%, 100% {
+    box-shadow: 0 0 15px -2px rgba(59, 130, 246, 0.35), inset 0 0 14px -2px rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 28px 3px rgba(59, 130, 246, 0.6), inset 0 0 20px 0px rgba(59, 130, 246, 0.28);
+    border-color: rgba(96, 165, 250, 0.85);
+  }
+}
+
+@keyframes status-beacon-pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 6px currentColor); }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.card-glow-emerald {
+  animation: glow-emerald 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.card-glow-cyan {
+  animation: glow-cyan 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.card-glow-purple {
+  animation: glow-purple 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.card-glow-amber {
+  animation: glow-amber 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.card-glow-blue {
+  animation: glow-blue 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.status-beacon-pulse {
+  animation: status-beacon-pulse 2s ease-in-out infinite;
+}
+
 .animate-wave {
   animation: wave-flow 4s ease-in-out infinite;
 }

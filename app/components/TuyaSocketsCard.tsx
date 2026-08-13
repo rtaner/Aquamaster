@@ -314,8 +314,48 @@ export default function TuyaSocketsCard({ onNotify }: TuyaSocketsCardProps) {
               </div>
 
               {/* Dış Filtre Kartı */}
-              <div className="bg-slate-950/60 rounded-2xl p-5 border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
+              <div className="bg-slate-950/60 rounded-2xl p-5 border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden group">
+                {/* Fluval FX Serisi İkonik Dış Filtre Silüeti Arka Plan Filigranı */}
+                <div className="absolute right-3 -bottom-5 opacity-[0.08] pointer-events-none text-cyan-400 select-none transition-all duration-500 group-hover:opacity-[0.15] group-hover:scale-105">
+                  <svg width="118" height="138" viewBox="0 0 100 120" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    {/* Üst AquaStop Vanaları & Click-Fit Hortumlar */}
+                    <path d="M 34 16 V 5 M 34 5 C 34 2, 24 2, 24 2" />
+                    <path d="M 66 16 V 5 M 66 5 C 66 2, 76 2, 76 2" />
+                    <rect x="29" y="10" width="10" height="5" rx="2" fill="currentColor" fillOpacity="0.4" />
+                    <rect x="61" y="10" width="10" height="5" rx="2" fill="currentColor" fillOpacity="0.4" />
+
+                    {/* Fluval FX Ağır Hizmet Tipi Yuvarlak Üst Kapak */}
+                    <rect x="18" y="16" width="64" height="12" rx="4" fill="currentColor" fillOpacity="0.25" />
+
+                    {/* Çevresel 8-Cıvatalı Kilitleme Klipsleri */}
+                    <rect x="13" y="17" width="6" height="10" rx="1.5" fill="currentColor" fillOpacity="0.6" />
+                    <rect x="81" y="17" width="6" height="10" rx="1.5" fill="currentColor" fillOpacity="0.6" />
+                    <rect x="24" y="24" width="4" height="6" rx="1" fill="currentColor" fillOpacity="0.4" />
+                    <rect x="72" y="24" width="4" height="6" rx="1" fill="currentColor" fillOpacity="0.4" />
+
+                    {/* Fluval FX Geniş Kova Gövdesi */}
+                    <path d="M 16 28 H 84 V 92 C 84 97, 76 101, 68 101 H 32 C 24 101, 16 97, 16 92 Z" fill="currentColor" fillOpacity="0.12" />
+
+                    {/* Yan Tutma Kaburgaları (Side Ribs / Handles) */}
+                    <path d="M 11 36 V 76 M 89 36 V 76" strokeWidth="2.5" />
+                    <line x1="11" y1="36" x2="16" y2="36" />
+                    <line x1="11" y1="76" x2="16" y2="76" />
+                    <line x1="84" y1="36" x2="89" y2="36" />
+                    <line x1="84" y1="76" x2="89" y2="76" />
+
+                    {/* Konsantrik İç Sepet Katmanları */}
+                    <rect x="24" y="36" width="52" height="16" rx="3" strokeDasharray="3 2" />
+                    <rect x="24" y="56" width="52" height="16" rx="3" strokeDasharray="3 2" />
+                    <rect x="24" y="76" width="52" height="16" rx="3" strokeDasharray="3 2" />
+
+                    {/* Fluval FX Alt Smart Pump Motor Tabanı & Tahliye Vanası */}
+                    <path d="M 22 101 H 78 V 109 C 78 113, 72 115, 64 115 H 36 C 28 115, 22 113, 22 109 Z" fill="currentColor" fillOpacity="0.3" />
+                    <path d="M 50 101 V 117" />
+                    <circle cx="50" cy="115" r="2.5" fill="currentColor" />
+                  </svg>
+                </div>
+
+                <div className="flex items-center gap-4 relative z-10">
                   <button
                     onClick={handleToggleFilter}
                     disabled={actionLoading === "toggle_filter"}
@@ -347,7 +387,7 @@ export default function TuyaSocketsCard({ onNotify }: TuyaSocketsCardProps) {
                 <button
                   onClick={handleToggleFilter}
                   disabled={actionLoading === "toggle_filter"}
-                  className={`px-5 py-2.5 rounded-xl font-medium text-sm border transition flex items-center justify-center gap-2 cursor-pointer ${
+                  className={`px-5 py-2.5 rounded-xl font-medium text-sm border transition flex items-center justify-center gap-2 cursor-pointer relative z-10 ${
                     filterDevice.isSwitchOn
                       ? "bg-slate-800 text-rose-400 border-rose-500/30 hover:bg-rose-950/40"
                       : "bg-slate-800 text-emerald-400 border-emerald-500/30 hover:bg-emerald-950/40"
@@ -507,39 +547,42 @@ export default function TuyaSocketsCard({ onNotify }: TuyaSocketsCardProps) {
                   const Icon = isCO2 ? FlaskConical : Sun;
                   const isThisChannelLoading = actionLoading === ch.code;
 
+                  let glowClass = "border-slate-800 bg-slate-950/50";
+                  if (ch.isSwitchOn) {
+                    if (isCO2) glowClass = "card-glow-emerald bg-slate-900/90";
+                    else if (ch.code === "switch_2") glowClass = "card-glow-purple bg-slate-900/90";
+                    else if (ch.code === "switch_3") glowClass = "card-glow-amber bg-slate-900/90";
+                    else glowClass = "card-glow-blue bg-slate-900/90";
+                  }
+
                   return (
                     <div
                       key={ch.code}
-                      className={`p-4 rounded-2xl border transition-all duration-300 flex flex-col justify-between space-y-4 ${
-                        ch.isSwitchOn
-                          ? isCO2
-                            ? "bg-cyan-950/40 border-cyan-500/40 shadow-lg shadow-cyan-950/40"
-                            : "bg-amber-950/30 border-amber-500/40 shadow-lg shadow-amber-950/40"
-                          : "bg-slate-950/50 border-slate-800"
-                      }`}
+                      className={`p-4 rounded-2xl border transition-all duration-300 flex flex-col justify-between space-y-4 shadow-lg relative overflow-hidden ${glowClass}`}
                     >
                       <div className="flex items-start justify-between">
                         <div
-                          className={`p-3 rounded-xl ${
+                          className={`p-3 rounded-xl border transition-all ${
                             ch.isSwitchOn
                               ? isCO2
-                                ? "bg-cyan-500/20 text-cyan-300"
-                                : "bg-amber-500/20 text-amber-300"
-                              : "bg-slate-900 text-slate-500"
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/30"
+                                : "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/30"
+                              : "bg-slate-900 text-slate-500 border-slate-800"
                           }`}
                         >
                           <Icon className={`w-5 h-5 ${ch.isSwitchOn ? "animate-pulse" : ""}`} />
                         </div>
 
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                             ch.isSwitchOn
                               ? isCO2
-                                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                                 : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
                               : "bg-slate-800 text-slate-500"
                           }`}
                         >
+                          {ch.isSwitchOn && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 status-beacon-pulse" />}
                           {ch.isSwitchOn ? "Açık" : "Kapalı"}
                         </span>
                       </div>
