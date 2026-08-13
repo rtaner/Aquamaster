@@ -1,6 +1,6 @@
 "use client";
 
-import { Droplets, History, Power, Wifi, WifiOff, RefreshCw, Thermometer } from "lucide-react";
+import { Droplets, History, Power, Wifi, WifiOff, RefreshCw } from "lucide-react";
 
 interface GlobalHeaderProps {
   isOnline: boolean | null;
@@ -92,23 +92,6 @@ export default function GlobalHeader({
               </div>
             )}
           </div>
-
-          {/* 🌡️ DS18B20 Akvaryum Su Sıcaklığı Rozeti */}
-          {temperature !== null && temperature !== undefined && (
-            <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-slate-900 via-teal-950/40 to-slate-900 border border-teal-500/30 rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-lg text-[11px] sm:text-xs">
-              <div className="relative flex items-center justify-center p-1 rounded-xl bg-teal-500/20 text-teal-300">
-                <Thermometer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-400 animate-pulse" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[9px] sm:text-[10px] font-medium text-slate-400 leading-tight">
-                  Su Sıcaklığı
-                </span>
-                <span className="font-mono font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-300 to-cyan-300 text-xs sm:text-sm">
-                  {temperature.toFixed(1)}°C
-                </span>
-              </div>
-            </div>
-          )}
         </div>
 
 
