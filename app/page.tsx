@@ -49,7 +49,8 @@ const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
 };
 
 export default function AquaMaster() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "manual" | "sockets" | "temperature" | "water_quality" | "calibration" | "logs">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "manual" | "sockets" | "analytics" | "calibration" | "logs" | "water_quality" | "temperature">("dashboard");
+
 
 
   const [loading, setLoading] = useState<number | null>(null);
@@ -835,13 +836,11 @@ export default function AquaMaster() {
         <div className="hidden sm:flex glass-panel p-1.5 rounded-2xl items-center justify-between border border-cyan-500/20 max-w-5xl mx-auto">
           {[
             { id: "dashboard", title: "Ana Ekran", icon: LayoutDashboard },
-            { id: "water_quality", title: "Su Kalitesi (TDS/EC)", icon: Waves },
             { id: "manual", title: "Gübre & Dozaj", icon: Droplets },
             { id: "sockets", title: "Prizler & Aydınlatma", icon: Zap },
-            { id: "calibration", title: "Kalibrasyon Sihirbazı", icon: Scale },
-            { id: "temperature", title: "Sıcaklık & Analiz", icon: BarChart3 },
+            { id: "calibration", title: "Kalibrasyon", icon: Scale },
+            { id: "analytics", title: "Analiz", icon: BarChart3 },
           ].map((tab) => {
-
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -860,47 +859,6 @@ export default function AquaMaster() {
           })}
         </div>
 
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 0: MOBİL VE MASAÜSTÜ YÖNETİCİ ÖZET PANELİ (DASHBOARD) */}
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {activeTab === "dashboard" && (
-          <DashboardTab
-            temperature={temperature}
-            tds={tds}
-            ec={ec}
-            waterChangeThreshold={waterChangeThreshold}
-            isOnline={isOnline}
-            deviceIp={deviceIp}
-            lastSeenTime={lastSeenTime}
-            currentTime={currentTime}
-            filterDevice={filterDevice}
-            stripDevice={stripDevice}
-            tuyaSchedules={tuyaSchedules}
-            pumpSettings={pumpSettings}
-            dosingLogs={dosingLogs}
-            onNavigateTab={setActiveTab as any}
-            onToggleFilter={handleToggleFilter}
-            onStartMaintenance={handleStartMaintenance}
-            onToggleChannel={handleToggleStripChannel}
-            onToggleAllStrip={handleToggleAllStrip}
-            onNotify={bildirimGoster}
-          />
-        )}
-
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 0.5: SU KALİTESİ (TDS & EC) TREND ANALİZ TABI */}
-        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {activeTab === "water_quality" && (
-          <WaterQualityTab
-            currentTds={tds}
-            currentEc={ec}
-            currentTemp={temperature}
-            deviceIp={deviceIp}
-            waterChangeThreshold={waterChangeThreshold}
-            onUpdateThreshold={handleSetWaterChangeThreshold}
-            onNotify={bildirimGoster}
-          />
-        )}
 
 
 
@@ -969,18 +927,31 @@ export default function AquaMaster() {
         )}
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {/* TAB 3: AKVARYUM ANALİZLERİ (SU SICAKLIĞI & GÜBRELEME LOGLARI İKİLİ TAB) */}
+        {/* TAB 3: AKVARYUM ANALİZLERİ (SU KALİTESİ, SICAKLIK & GÜBRE DOZAJ İÇ TABLAR) */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-        {(activeTab === "temperature" || activeTab === "logs") && (
+        {(activeTab === "analytics" || activeTab === "water_quality" || activeTab === "temperature" || activeTab === "logs") && (
           <AnalyticsTab
-            temperature={temperature}
-            logs={dosingLogs}
+            currentTds={tds}
+            currentEc={ec}
+            currentTemp={temperature}
+            deviceIp={deviceIp}
+            waterChangeThreshold={waterChangeThreshold}
+            onUpdateThreshold={handleSetWaterChangeThreshold}
+            dosingLogs={dosingLogs}
             logsLoading={logsLoading}
             pumpSettings={pumpSettings}
             onRefreshLogs={fetchDosingLogs}
             onNotify={bildirimGoster}
+            defaultSubTab={
+              activeTab === "temperature"
+                ? "temperature"
+                : activeTab === "logs"
+                ? "dosing"
+                : "water_quality"
+            }
           />
         )}
+
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {/* TAB 4: ADIM ADIM KALİBRASYON SİHİRBAZI */}

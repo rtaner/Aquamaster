@@ -135,7 +135,7 @@ export default function DashboardTab({
       {/* 🚨 SU DEĞİŞİMİ ZAMANI GELDİ UYARI BARAJI (Eğer TDS Eşiği Aşılırsa) */}
       {tds !== undefined && tds !== null && tds >= waterChangeThreshold && (
         <div
-          onClick={() => onNavigateTab("water_quality")}
+          onClick={() => onNavigateTab("analytics" as any)}
           className="relative overflow-hidden bg-gradient-to-r from-rose-950/90 via-rose-900/50 to-slate-900 border-2 border-rose-500/60 p-4 sm:p-5 rounded-2xl shadow-xl shadow-rose-950/40 cursor-pointer hover:border-rose-400 transition group"
         >
           <div className="flex items-center justify-between gap-3 relative z-10">
@@ -166,7 +166,7 @@ export default function DashboardTab({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
         {/* KART 1: SU KALİTESİ (TDS & EC) */}
         <div
-          onClick={() => onNavigateTab("water_quality")}
+          onClick={() => onNavigateTab("analytics" as any)}
           className="glass-panel p-3.5 sm:p-4 rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-slate-900/95 to-slate-950 hover:bg-slate-900 cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden group shadow-lg"
         >
           <div>
@@ -207,9 +207,10 @@ export default function DashboardTab({
 
         {/* KART 2: SICAKLIK */}
         <div
-          onClick={() => onNavigateTab("temperature")}
+          onClick={() => onNavigateTab("analytics" as any)}
           className="glass-panel p-3.5 sm:p-4 rounded-2xl border border-cyan-500/30 bg-slate-900/90 hover:bg-slate-900 cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden group shadow-lg"
         >
+
           <div>
             <div className="flex items-center gap-2 mb-2">
               <div className="p-1.5 sm:p-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">

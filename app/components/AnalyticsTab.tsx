@@ -1,65 +1,124 @@
 "use client";
 
 import { useState } from "react";
-import { Thermometer, FileText, Activity, Droplets } from "lucide-react";
+import { Waves, Thermometer, FlaskConical, BarChart2 } from "lucide-react";
+import WaterQualityTab from "./WaterQualityTab";
 import TemperatureTab from "./TemperatureTab";
 import DosingLogsTab from "./DosingLogsTab";
 import { DosingLog, PumpSetting } from "@/types/aquamaster";
 
+export type AnalyticsSubTab = "water_quality" | "temperature" | "dosing";
+
 interface AnalyticsTabProps {
-  temperature?: number | null;
-  logs: DosingLog[];
-  logsLoading: boolean;
-  pumpSettings: { [key: number]: PumpSetting };
+  currentTds?: number | null;
+  currentEc?: number | null;
+  currentTemp?: number | null;
+  deviceIp?: string | null;
+  waterChangeThreshold?: number;
+  onUpdateThreshold?: (val: number) => void;
+  dosingLogs?: DosingLog[];
+  logsLoading?: boolean;
+  pumpSettings?: { [key: number]: PumpSetting };
   onRefreshLogs?: () => void;
   onNotify?: (text: string, type: "success" | "error") => void;
+  defaultSubTab?: AnalyticsSubTab;
 }
 
 export default function AnalyticsTab({
-  temperature,
-  logs,
-  logsLoading,
-  pumpSettings,
+  currentTds,
+  currentEc,
+  currentTemp,
+  deviceIp,
+  waterChangeThreshold = 400,
+  onUpdateThreshold,
+  dosingLogs = [],
+  logsLoading = false,
+  pumpSettings = {},
   onRefreshLogs,
   onNotify,
+  defaultSubTab = "water_quality",
 }: AnalyticsTabProps) {
-  const [subTab, setSubTab] = useState<"temperature" | "dosing">("temperature");
+  const [subTab, setSubTab] = useState<AnalyticsSubTab>(defaultSubTab);
+
+  const subTabsConfig = [
+    {
+      id: "water_quality" as AnalyticsSubTab,
+      label: "Su Kalitesi (TDS & EC)",
+      icon: Waves,
+    },
+    {
+      id: "temperature" as AnalyticsSubTab,
+      label: "Sıcaklık",
+      icon: Thermometer,
+    },
+    {
+      id: "dosing" as AnalyticsSubTab,
+      label: "Gübre Dozaj",
+      icon: FlaskConical,
+    },
+  ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* ÜST İKİLİ SUB-TAB ANAHTARI */}
-      <div className="glass-panel p-2 rounded-2xl border border-cyan-500/20 bg-slate-900/90 max-w-xl mx-auto flex items-center justify-between shadow-xl">
-        <button
-          onClick={() => setSubTab("temperature")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            subTab === "temperature"
-              ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-lg shadow-teal-950/50"
-              : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-          }`}
-        >
-          <Thermometer className="w-4 h-4 text-teal-300" />
-          <span>Su Sıcaklığı Grafiği</span>
-        </button>
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* ANALİZ SAYFASI BAŞLIK & İÇ ALT TAB NAVİGASYONU */}
+      <div className="bg-slate-900/80 backdrop-blur-md p-4 rounded-3xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 text-cyan-300 border border-cyan-500/30">
+            <BarChart2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+              Sistem Analiz & Trend Raporları
+            </h1>
+            <p className="text-xs text-slate-400">
+              Su kalitesi (TDS/EC), sıcaklık değişimleri ve gübre dozaj geçmişini tek noktadan takip edin
+            </p>
+          </div>
+        </div>
 
-        <button
-          onClick={() => setSubTab("dosing")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            subTab === "dosing"
-              ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-950/50"
-              : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-          }`}
-        >
-          <Droplets className="w-4 h-4 text-cyan-300" />
-          <span>Gübre Dozaj Logları</span>
-        </button>
+        {/* 3 ADET İÇ TAB GEÇİŞ BUTONU */}
+        <div className="flex items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800/80 w-full md:w-auto overflow-x-auto">
+          {subTabsConfig.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = subTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setSubTab(tab.id)}
+                className={`flex-1 md:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-lg shadow-cyan-500/20 scale-[1.02]"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* ALT İÇERİK SEÇİMİ */}
-      {subTab === "temperature" ? (
-        <TemperatureTab currentTemp={temperature} onNotify={onNotify} />
-      ) : (
+      {/* İÇ TAB İÇERİĞİ */}
+      {subTab === "water_quality" && (
+        <WaterQualityTab
+          currentTds={currentTds}
+          currentEc={currentEc}
+          currentTemp={currentTemp}
+          deviceIp={deviceIp}
+          waterChangeThreshold={waterChangeThreshold}
+          onUpdateThreshold={onUpdateThreshold}
+          onNotify={onNotify}
+        />
+      )}
+
+      {subTab === "temperature" && (
+        <TemperatureTab currentTemp={currentTemp} />
+      )}
+
+      {subTab === "dosing" && (
         <DosingLogsTab
-          logs={logs}
+          logs={dosingLogs}
           logsLoading={logsLoading}
           pumpSettings={pumpSettings}
           onRefreshLogs={onRefreshLogs}
