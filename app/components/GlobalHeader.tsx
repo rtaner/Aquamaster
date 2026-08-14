@@ -7,6 +7,8 @@ interface GlobalHeaderProps {
   deviceIp: string | null;
   lastSeenTime: number | null;
   temperature?: number | null;
+  tds?: number | null;
+  ec?: number | null;
   currentTime: Date | null;
   onOpenLogs: () => void;
   onEmergencyStop: () => void;
@@ -18,6 +20,8 @@ export default function GlobalHeader({
   deviceIp,
   lastSeenTime,
   temperature,
+  tds,
+  ec,
   currentTime,
   onOpenLogs,
   onEmergencyStop,
@@ -52,7 +56,7 @@ export default function GlobalHeader({
           </div>
         </div>
 
-        {/* Orta: ESP32 Canlılık & DS18B20 Su Sıcaklığı Telemetrisi */}
+        {/* Orta: ESP32 Canlılık & Telemetri Rozetleri */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* ESP32 Wi-Fi Canlılık Durumu */}
           <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800/80 rounded-2xl px-2.5 sm:px-3.5 py-1 sm:py-1.5 shadow-inner text-[11px] sm:text-xs">
@@ -92,7 +96,21 @@ export default function GlobalHeader({
               </div>
             )}
           </div>
+
+          {/* TDS & EC Rozeti */}
+          {tds !== undefined && tds !== null && tds > 0 && (
+            <div className="hidden md:flex items-center gap-2 bg-slate-900/90 border border-cyan-500/30 rounded-2xl px-3 py-1 text-xs">
+              <Droplets className="w-3.5 h-3.5 text-cyan-400" />
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="font-bold text-cyan-300">{tds} PPM</span>
+                {ec !== undefined && ec !== null && (
+                  <span className="text-[10px] text-emerald-400">({Math.round(ec)} µS/cm)</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
+
 
 
         {/* Sağ Taraf: Saat, E-STOP & Log Butonu */}

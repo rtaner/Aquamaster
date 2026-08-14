@@ -19,7 +19,11 @@ export interface DosingLog {
   created_at?: string;
   status?: "Başarılı" | "Gecikmeli" | "Hata";
   source?: string;
+  tds_before?: number;
+  tds_after?: number;
+  tds_delta?: number;
 }
+
 
 export interface ActiveDosingState {
   remainingSeconds: number;
@@ -86,6 +90,15 @@ export interface TemperatureLog {
   temperature: number;
   created_at?: string;
 }
+
+export interface WaterQualityLog {
+  id?: number;
+  tds: number;
+  ec: number;
+  temperature?: number;
+  created_at?: string;
+}
+
 
 
 

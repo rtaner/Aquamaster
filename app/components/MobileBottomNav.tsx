@@ -1,8 +1,8 @@
 "use client";
 
-import { LayoutDashboard, Droplets, Zap, BarChart3, Settings } from "lucide-react";
+import { LayoutDashboard, Droplets, Zap, BarChart3, Settings, Waves } from "lucide-react";
 
-export type TabType = "dashboard" | "manual" | "sockets" | "temperature" | "calibration" | "logs";
+export type TabType = "dashboard" | "manual" | "sockets" | "temperature" | "water_quality" | "calibration" | "logs";
 
 interface MobileBottomNavProps {
   activeTab: TabType;
@@ -12,11 +12,13 @@ interface MobileBottomNavProps {
 export default function MobileBottomNav({ activeTab, setActiveTab }: MobileBottomNavProps) {
   const tabs: { id: TabType; label: string; icon: typeof Droplets }[] = [
     { id: "dashboard", label: "Ana Sayfa", icon: LayoutDashboard },
+    { id: "water_quality", label: "Su Kalitesi", icon: Waves },
     { id: "manual", label: "Dozaj", icon: Droplets },
     { id: "sockets", label: "Otomasyon", icon: Zap },
-    { id: "temperature", label: "Analiz", icon: BarChart3 },
+    { id: "temperature", label: "Sıcaklık", icon: BarChart3 },
     { id: "calibration", label: "Ayarlar", icon: Settings },
   ];
+
 
 
 

@@ -28,6 +28,11 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 float suSicakligi = -127.0; // Anlık su sıcaklığı °C
 
+// --- TDS METER V1.0 ANALOG SENSÖR KONFİGÜRASYONU (GPIO 35 - ADC1_CH7) ---
+#define TDS_PIN 35
+float suTdsPpm = 0.0; // Anlık TDS (PPM)
+float suEcVal = 0.0;  // Anlık EC (uS/cm)
+
 const int POMPA_1 = 16;
 const int POMPA_2 = 17;
 const int POMPA_3 = 18;
@@ -60,7 +65,9 @@ int sonCalisanDakika[5] = {-1, -1, -1, -1, -1};
 // --- BAĞIMSIZ ZAMANLAYICI SAYAÇLARI ---
 unsigned long sonİnternetKontrol = 0; // Gübre Motoru & Komut Kontrolü (10 Saniyede Bir)
 unsigned long sonSicaklikKontrol = 0; // DS18B20 Su Sıcaklığı Kontrolü (5 Dakikada Bir)
+unsigned long sonTdsKontrol = 0;      // TDS & EC Ölçümü ve Log Kaydı (Saat Başı / 3.600.000 ms)
 unsigned long sonGorevKontrol = 0;    // Offline Hafıza Kontrolü (Her Saniye)
+
 
 // --- GÜVENLİ VE ÇAKIŞMASIZ DS18B20 SICAKLIK OKUMA FONKSİYONU ---
 float sicaklikOku() {
@@ -82,7 +89,81 @@ float sicaklikOku() {
   return suSicakligi;
 }
 
+// --- TDS METER V1.0 HASSAS ANALOG VE SICAKLIK KOMPANZASYONLU OKUMA FONKSİYONU ---
+void tdsEcOku(float &tdsPpmResult, float &ecValResult) {
+  int analogBuffer[30];
+  int analogBufferTemp[30];
+  
+  // 30 Örnek al (300 ms)
+  for (int i = 0; i < 30; i++) {
+    analogBuffer[i] = analogRead(TDS_PIN);
+    delay(10);
+  }
+  
+  // Sıralama (Bubble Sort - Medyan Filtresi için)
+  for (int i = 0; i < 30; i++) {
+    analogBufferTemp[i] = analogBuffer[i];
+  }
+  for (int i = 0; i < 29; i++) {
+    for (int j = i + 1; j < 30; j++) {
+      if (analogBufferTemp[i] > analogBufferTemp[j]) {
+        int temp = analogBufferTemp[i];
+        analogBufferTemp[i] = analogBufferTemp[j];
+        analogBufferTemp[j] = temp;
+      }
+    }
+  }
+  
+  // Medyan 10 örneğin ortalamasını al
+  long medianSum = 0;
+  for (int i = 10; i < 20; i++) {
+    medianSum += analogBufferTemp[i];
+  }
+  float averageAdc = (float)medianSum / 10.0;
+  
+  // Voltaj Dönüşümü (ESP32 ADC 12-bit: 0..4095, 3.3V Referans)
+  float rawVoltage = averageAdc * (3.3 / 4095.0);
+  
+  // Anlık DS18B20 sıcaklığı ile katsayı hesaplama (25°C referansı)
+  float mevcutSicaklik = (suSicakligi > -50.0) ? suSicakligi : 25.0;
+  float tempCoefficient = 1.0 + 0.02 * (mevcutSicaklik - 25.0);
+  float compensatedVoltage = rawVoltage / tempCoefficient;
+  
+  // TDS (PPM) Dönüşümü
+  float tdsVal = (133.42 * pow(compensatedVoltage, 3) - 255.86 * pow(compensatedVoltage, 2) + 857.39 * compensatedVoltage) * 0.5;
+  if (tdsVal < 0) tdsVal = 0;
+  
+  // EC (uS/cm) Dönüşümü
+  float ecVal = tdsVal / 0.5;
+  
+  suTdsPpm = tdsVal;
+  suEcVal = ecVal;
+  tdsPpmResult = tdsVal;
+  ecValResult = ecVal;
+}
+
+
+// --- LOKAL ANLIK TDS/EC ÖLÇÜM (KAYITSIZ TEST) ROUTE ---
+void handleReadTds() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  float tdsVal = 0.0;
+  float ecVal = 0.0;
+  tdsEcOku(tdsVal, ecVal);
+
+  DynamicJsonDocument doc(256);
+  doc["success"] = true;
+  doc["tds"] = round(tdsVal * 10.0) / 10.0;
+  doc["ec"] = round(ecVal * 10.0) / 10.0;
+  doc["temperature"] = (suSicakligi > -50.0) ? round(suSicakligi * 10.0) / 10.0 : 25.0;
+
+  String response;
+  serializeJson(doc, response);
+  server.send(200, "application/json", response);
+  Serial.println("\n[ANLIK TEST] Lokal HTTP /read_tds isteği yanıtlandı (Kayıtsız Ölçüm).");
+}
+
 // --- LOKAL HORTUM ÇEKME (PRIMING) ROUTE ---
+
 void handlePrime() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if (!server.hasArg("pump") || !server.hasArg("state")) {
@@ -164,8 +245,10 @@ void setup() {
   // Lokal HTTP Sunucu Rotaları
   server.on("/prime", handlePrime);
   server.on("/stop", handleStop);
+  server.on("/read_tds", handleReadTds);
   server.begin();
   Serial.println("Lokal WebServer Baslatildi (Port 80)");
+
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
@@ -221,8 +304,18 @@ void motorCalistir(int motorNo, int saniye) {
   }
 }
 
+struct SonDozlamaTakip {
+  bool aktif;
+  unsigned long baslangicMs;
+  float tdsBefore;
+  int pumpId;
+  int durationSeconds;
+};
+SonDozlamaTakip sonDozlama = {false, 0, 0.0, 0, 0};
+
 void logEkle(int pumpId, int durationSeconds) {
   if (WiFi.status() == WL_CONNECTED) {
+    float tdsBefore = suTdsPpm;
     HTTPClient http;
     String endpoint = supabaseUrl + "/rest/v1/dosing_logs";
     http.begin(endpoint);
@@ -230,11 +323,20 @@ void logEkle(int pumpId, int durationSeconds) {
     http.addHeader("Authorization", "Bearer " + supabaseKey);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Prefer", "return=minimal");
-    String body = "{\"pump_id\":" + String(pumpId) + ",\"duration_seconds\":" + String(durationSeconds) + ",\"ml_amount\":" + String(durationSeconds) + ",\"mode\":\"Zamanlanmış\"}";
+    String body = "{\"pump_id\":" + String(pumpId) + ",\"duration_seconds\":" + String(durationSeconds) + ",\"ml_amount\":" + String(durationSeconds) + ",\"mode\":\"Zamanlanmış\",\"tds_before\":" + String(tdsBefore, 1) + "}";
     http.POST(body);
     http.end();
+
+    // 10 Dakikalık (600.000 ms) dozlama sonrası etki takibini başlat
+    sonDozlama.aktif = true;
+    sonDozlama.baslangicMs = millis();
+    sonDozlama.tdsBefore = tdsBefore;
+    sonDozlama.pumpId = pumpId;
+    sonDozlama.durationSeconds = durationSeconds;
+    Serial.println("\n[DOZAJ TAKİP] Dozlama yapıldı (TDS Öncesi: " + String(tdsBefore, 1) + " PPM). 10 dakika sonra otomatik etki ölçümü yapılacak...");
   }
 }
+
 
 // --- ESP32 CANLILIK KALP ATIŞI SİNYALİ (Her 10 Saniyede Bir) ---
 void kalpatisiGonder() {
@@ -287,6 +389,44 @@ void sicaklikGonder() {
       http2.POST(body2);
       http2.end();
     }
+  }
+}
+
+// --- TDS & EC SU KALİTESİ GÖNDERİMİ VE LOG KAYDI (Saat Başı / 3.600.000 ms) ---
+void suKalitesiGonder() {
+  if (WiFi.status() == WL_CONNECTED) {
+    float tdsVal = 0.0;
+    float ecVal = 0.0;
+    tdsEcOku(tdsVal, ecVal);
+
+    Serial.print("\n[TDS/EC - Saatlik Kontrol] TDS: ");
+    Serial.print(tdsVal, 1);
+    Serial.print(" PPM | EC: ");
+    Serial.print(ecVal, 1);
+    Serial.println(" uS/cm");
+
+    // 1. Anlık durumu device_status tablosunda güncelle
+    HTTPClient http1;
+    String endpoint1 = supabaseUrl + "/rest/v1/device_status?id=eq.1";
+    http1.begin(endpoint1);
+    http1.addHeader("apikey", supabaseKey);
+    http1.addHeader("Authorization", "Bearer " + supabaseKey);
+    http1.addHeader("Content-Type", "application/json");
+    String body1 = "{\"tds\":" + String(tdsVal, 1) + ",\"ec\":" + String(ecVal, 1) + "}";
+    http1.PATCH(body1);
+    http1.end();
+
+    // 2. Analizler ve geçmiş trend grafikleri için water_quality_logs tablosuna yeni log ekle
+    HTTPClient http2;
+    String endpoint2 = supabaseUrl + "/rest/v1/water_quality_logs";
+    http2.begin(endpoint2);
+    http2.addHeader("apikey", supabaseKey);
+    http2.addHeader("Authorization", "Bearer " + supabaseKey);
+    http2.addHeader("Content-Type", "application/json");
+    http2.addHeader("Prefer", "return=minimal");
+    String body2 = "{\"tds\":" + String(tdsVal, 1) + ",\"ec\":" + String(ecVal, 1) + ",\"temperature\":" + String(suSicakligi, 1) + "}";
+    http2.POST(body2);
+    http2.end();
   }
 }
 
@@ -400,6 +540,43 @@ void loop() {
     sonSicaklikKontrol = millis();
     sicaklikGonder();
   }
+
+  // --- 3. AŞAMA: TDS & EC SU KALİTESİ KONTROLÜ (Saat Başı / 3.600.000 ms) ---
+  if (millis() - sonTdsKontrol > 3600000 || sonTdsKontrol == 0) {
+    sonTdsKontrol = millis();
+    suKalitesiGonder();
+  }
+
+  // --- 4. AŞAMA: DOZLAMA SONRASI 10 DAKİKALIK ETKİ TAKİBİ ---
+  if (sonDozlama.aktif && (millis() - sonDozlama.baslangicMs > 600000)) {
+    sonDozlama.aktif = false;
+    float tdsAfter = 0.0;
+    float ecAfter = 0.0;
+    tdsEcOku(tdsAfter, ecAfter);
+    float tdsDelta = tdsAfter - sonDozlama.tdsBefore;
+
+    Serial.print("\n[DOZAJ ETKİSİ] 10 Dakika Doldu! TDS Öncesi: ");
+    Serial.print(sonDozlama.tdsBefore, 1);
+    Serial.print(" PPM | Sonrası: ");
+    Serial.print(tdsAfter, 1);
+    Serial.print(" PPM | Fark: ");
+    Serial.print(tdsDelta, 1);
+    Serial.println(" PPM");
+
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      String endpoint = supabaseUrl + "/rest/v1/dosing_logs?pump_id=eq." + String(sonDozlama.pumpId) + "&order=created_at.desc&limit=1";
+      http.begin(endpoint);
+      http.addHeader("apikey", supabaseKey);
+      http.addHeader("Authorization", "Bearer " + supabaseKey);
+      http.addHeader("Content-Type", "application/json");
+      String body = "{\"tds_after\":" + String(tdsAfter, 1) + ",\"tds_delta\":" + String(tdsDelta, 1) + "}";
+      http.PATCH(body);
+      http.end();
+    }
+  }
+
+
 
   // --- 3. AŞAMA: OFFLINE HAFIZA KONTROLÜ VE MOTOR TETİKLEME (Her Saniye) ---
   if (millis() - sonGorevKontrol > 1000) {

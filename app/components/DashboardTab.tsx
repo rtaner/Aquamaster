@@ -17,6 +17,9 @@ import { formatCompactDuration, formatRelativeTimestamp } from "@/lib/timeUtils"
 
 interface DashboardTabProps {
   temperature?: number | null;
+  tds?: number | null;
+  ec?: number | null;
+  waterChangeThreshold?: number;
   isOnline: boolean | null;
   deviceIp: string | null;
   lastSeenTime: number | null;
@@ -26,7 +29,7 @@ interface DashboardTabProps {
   tuyaSchedules: TuyaSocketSchedule[];
   pumpSettings: { [key: number]: PumpSetting };
   dosingLogs: DosingLog[];
-  onNavigateTab: (tab: "dashboard" | "manual" | "sockets" | "temperature" | "calibration" | "logs") => void;
+  onNavigateTab: (tab: "dashboard" | "manual" | "sockets" | "temperature" | "calibration" | "logs" | "water_quality") => void;
   onToggleFilter: () => void;
   onStartMaintenance: (minutes: number) => void;
   onToggleChannel: (channelCode: string, label: string, currentState: boolean) => void;
@@ -36,6 +39,9 @@ interface DashboardTabProps {
 
 export default function DashboardTab({
   temperature,
+  tds,
+  ec,
+  waterChangeThreshold = 400,
   isOnline,
   deviceIp,
   lastSeenTime,
@@ -49,6 +55,7 @@ export default function DashboardTab({
   onToggleFilter,
   onToggleChannel,
 }: DashboardTabProps) {
+
   // ESP32 Son Sinyal Geçen Süre
   const secondsAgo = useMemo(() => {
     if (!lastSeenTime || !currentTime) return null;
@@ -125,11 +132,80 @@ export default function DashboardTab({
         )}
       </div>
 
+      {/* 🚨 SU DEĞİŞİMİ ZAMANI GELDİ UYARI BARAJI (Eğer TDS Eşiği Aşılırsa) */}
+      {tds !== undefined && tds !== null && tds >= waterChangeThreshold && (
+        <div
+          onClick={() => onNavigateTab("water_quality")}
+          className="relative overflow-hidden bg-gradient-to-r from-rose-950/90 via-rose-900/50 to-slate-900 border-2 border-rose-500/60 p-4 sm:p-5 rounded-2xl shadow-xl shadow-rose-950/40 cursor-pointer hover:border-rose-400 transition group"
+        >
+          <div className="flex items-center justify-between gap-3 relative z-10">
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse shrink-0">
+                <Droplets className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-bold text-rose-200">🚨 SU DEĞİŞİMİ ZAMANI GELDİ!</h3>
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-500/30 text-rose-300 border border-rose-500/40">
+                    {tds} PPM
+                  </span>
+                </div>
+                <p className="text-xs text-rose-200/80 mt-0.5">
+                  Su kalitesi belirlenen <strong>{waterChangeThreshold} PPM</strong> kritik seviyesini aştı. Trend grafiğini ve detayları incelemek için tıklayın.
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-rose-300 group-hover:translate-x-1 transition shrink-0" />
+          </div>
+        </div>
+      )}
+
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      {/* 2. 6'LI CİHAZ DURUM KARTLARI (2 SATIRDA 3'ER KUTU - MOCKUP BIREBIR) */}
+      {/* 2. CİHAZ VE SENSÖR DURUM KARTLARI */}
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-        {/* KART 1: SICAKLIK */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+        {/* KART 1: SU KALİTESİ (TDS & EC) */}
+        <div
+          onClick={() => onNavigateTab("water_quality")}
+          className="glass-panel p-3.5 sm:p-4 rounded-2xl border border-cyan-500/40 bg-gradient-to-br from-slate-900/95 to-slate-950 hover:bg-slate-900 cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden group shadow-lg"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 sm:p-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  <Droplets className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  SU KALİTESİ
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-0.5 transition" />
+            </div>
+
+            <div className="my-1">
+              <div className="text-lg sm:text-2xl font-black text-white font-mono leading-tight">
+                {tds !== undefined && tds !== null && tds > 0 ? tds : "--"}
+                <span className="text-xs sm:text-sm font-bold text-cyan-400 ml-1">PPM</span>
+              </div>
+              <div className="text-xs font-bold text-emerald-400 font-mono mt-0.5">
+                {ec !== undefined && ec !== null && ec > 0 ? `${Math.round(ec)} µS/cm` : `${(tds || 0) * 2} µS/cm`}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between">
+            <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold ${
+              tds && tds >= waterChangeThreshold
+                ? "bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-pulse"
+                : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+            }`}>
+              {tds && tds >= waterChangeThreshold ? "Su Değişimi!" : "İdeal Seviye"}
+            </span>
+            <span className="text-[9px] text-slate-400 font-mono">1 Saatlik</span>
+          </div>
+        </div>
+
+        {/* KART 2: SICAKLIK */}
         <div
           onClick={() => onNavigateTab("temperature")}
           className="glass-panel p-3.5 sm:p-4 rounded-2xl border border-cyan-500/30 bg-slate-900/90 hover:bg-slate-900 cursor-pointer transition-all flex flex-col justify-between relative overflow-hidden group shadow-lg"
@@ -159,6 +235,7 @@ export default function DashboardTab({
             </div>
           </div>
         </div>
+
 
         {/* KART 2: CO₂ */}
         {(() => {
@@ -206,43 +283,51 @@ export default function DashboardTab({
             filterDevice?.isSwitchOn ? "card-glow-cyan bg-slate-900/90" : "border-slate-800 bg-slate-950/60 hover:border-slate-700"
           }`}
         >
-          {/* Fluval FX Serisi İkonik Dış Filtre Silüeti Arka Plan Filigranı */}
-          <div className="absolute -right-3 -bottom-4 opacity-[0.09] pointer-events-none text-cyan-400 select-none transition-all duration-500 group-hover:opacity-[0.16] group-hover:scale-105">
+          {/* Referans Görselle Birebir Uyumlu Dış Filtre Silüeti Arka Plan Filigranı */}
+          <div className="absolute -right-3 -bottom-4 opacity-[0.09] pointer-events-none text-cyan-400 select-none transition-all duration-500 group-hover:opacity-[0.17] group-hover:scale-105">
             <svg width="95" height="115" viewBox="0 0 100 120" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              {/* Üst AquaStop Vanaları & Click-Fit Hortumlar */}
-              <path d="M 34 16 V 5 M 34 5 C 34 2, 24 2, 24 2" />
-              <path d="M 66 16 V 5 M 66 5 C 66 2, 76 2, 76 2" />
-              <rect x="29" y="10" width="10" height="5" rx="2" fill="currentColor" fillOpacity="0.4" />
-              <rect x="61" y="10" width="10" height="5" rx="2" fill="currentColor" fillOpacity="0.4" />
+              {/* Üst Kıvrımlı Hortumlar & Akış Yönü Okları (IN -> & OUT <-) */}
+              <path d="M 28 20 V 10 Q 28 4, 20 4 H 14" />
+              <path d="M 20 1 L 24 4 L 20 7" strokeWidth="2" />
+              <path d="M 72 20 V 10 Q 72 4, 80 4 H 86" />
+              <path d="M 80 1 L 76 4 L 80 7" strokeWidth="2" />
 
-              {/* Fluval FX Ağır Hizmet Tipi Yuvarlak Üst Kapak */}
-              <rect x="18" y="16" width="64" height="12" rx="4" fill="currentColor" fillOpacity="0.25" />
+              {/* Rekor Somunları */}
+              <rect x="23" y="16" width="10" height="5" rx="1.5" fill="currentColor" fillOpacity="0.4" />
+              <rect x="67" y="16" width="10" height="5" rx="1.5" fill="currentColor" fillOpacity="0.4" />
 
-              {/* Çevresel 8-Cıvatalı Kilitleme Klipsleri (Swing-Lock Clamps) */}
-              <rect x="13" y="17" width="6" height="10" rx="1.5" fill="currentColor" fillOpacity="0.6" />
-              <rect x="81" y="17" width="6" height="10" rx="1.5" fill="currentColor" fillOpacity="0.6" />
-              <rect x="24" y="24" width="4" height="6" rx="1" fill="currentColor" fillOpacity="0.4" />
-              <rect x="72" y="24" width="4" height="6" rx="1" fill="currentColor" fillOpacity="0.4" />
+              {/* Üst Motor Kafası & Kilit Mandalları */}
+              <rect x="18" y="21" width="64" height="18" rx="5" fill="currentColor" fillOpacity="0.25" />
+              <rect x="42" y="26" width="16" height="6" rx="2" fill="currentColor" fillOpacity="0.4" />
+              <rect x="12" y="25" width="6" height="10" rx="1.5" fill="currentColor" fillOpacity="0.5" />
+              <rect x="82" y="25" width="6" height="10" rx="1.5" fill="currentColor" fillOpacity="0.5" />
 
-              {/* Fluval FX Geniş Kova Gövdesi */}
-              <path d="M 16 28 H 84 V 92 C 84 97, 76 101, 68 101 H 32 C 24 101, 16 97, 16 92 Z" fill="currentColor" fillOpacity="0.12" />
+              {/* Filtre Kovası Gövdesi */}
+              <rect x="18" y="39" width="64" height="71" rx="9" fill="currentColor" fillOpacity="0.12" />
 
-              {/* Yan Tutma Kaburgaları (Side Ribs / Handles) */}
-              <path d="M 11 36 V 76 M 89 36 V 76" strokeWidth="2.5" />
-              <line x1="11" y1="36" x2="16" y2="36" />
-              <line x1="11" y1="76" x2="16" y2="76" />
-              <line x1="84" y1="36" x2="89" y2="36" />
-              <line x1="84" y1="76" x2="89" y2="76" />
+              {/* 1. Katman: İnce Elyaf Pad */}
+              <line x1="20" y1="54" x2="80" y2="54" />
+              <line x1="26" y1="46" x2="74" y2="46" strokeDasharray="2 2" />
 
-              {/* Konsantrik İç Sepet Katmanları */}
-              <rect x="24" y="36" width="52" height="16" rx="3" strokeDasharray="3 2" />
-              <rect x="24" y="56" width="52" height="16" rx="3" strokeDasharray="3 2" />
-              <rect x="24" y="76" width="52" height="16" rx="3" strokeDasharray="3 2" />
+              {/* 2. Katman: Bio-Ball / Biyolojik Toplar (Daireler) */}
+              <line x1="20" y1="72" x2="80" y2="72" />
+              <circle cx="32" cy="63" r="3.2" fill="currentColor" fillOpacity="0.5" />
+              <circle cx="44" cy="63" r="3.2" fill="currentColor" fillOpacity="0.5" />
+              <circle cx="56" cy="63" r="3.2" fill="currentColor" fillOpacity="0.5" />
+              <circle cx="68" cy="63" r="3.2" fill="currentColor" fillOpacity="0.5" />
 
-              {/* Fluval FX Alt Smart Pump Motor Tabanı & Tahliye Vanası */}
-              <path d="M 22 101 H 78 V 109 C 78 113, 72 115, 64 115 H 36 C 28 115, 22 113, 22 109 Z" fill="currentColor" fillOpacity="0.3" />
-              <path d="M 50 101 V 117" />
-              <circle cx="50" cy="115" r="2.5" fill="currentColor" />
+              {/* 3. Katman: Seramik Halkalar / Sünger (Çapraz Taramalar) */}
+              <line x1="20" y1="88" x2="80" y2="88" />
+              <line x1="26" y1="74" x2="32" y2="86" strokeWidth="2" />
+              <line x1="44" y1="74" x2="50" y2="86" strokeWidth="2" />
+              <line x1="62" y1="74" x2="68" y2="86" strokeWidth="2" />
+
+              {/* En Alt Bölme: Pervane / Motor Rotor Simgesi */}
+              <circle cx="50" cy="99" r="6.5" strokeWidth="1.8" />
+              <path d="M 50 92.5 V 105.5 M 43.5 99 H 56.5" strokeWidth="1.5" />
+
+              {/* Taban Ayakları */}
+              <path d="M 24 110 V 114 H 32 M 68 114 H 76 V 110" strokeWidth="2.5" />
             </svg>
           </div>
 
@@ -250,7 +335,27 @@ export default function DashboardTab({
             <div className="flex items-center justify-between mb-2 relative z-10">
               <div className="flex items-center gap-2">
                 <div className={`p-1.5 sm:p-2 rounded-xl border transition-all ${filterDevice?.isSwitchOn ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm shadow-cyan-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}>
-                  <ShieldCheck className={`w-4 h-4 sm:w-5 sm:h-5 ${filterDevice?.isSwitchOn ? "animate-pulse" : ""}`} />
+                  {/* Ön Yüz İkonu (Görselinizdeki Dış Filtre İkonu) */}
+                  <svg className={`w-4 h-4 sm:w-5 sm:h-5 ${filterDevice?.isSwitchOn ? "animate-pulse text-cyan-300" : "text-slate-400"}`} viewBox="0 0 100 120" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M 28 20 V 10 Q 28 4, 20 4 H 14" />
+                    <path d="M 20 1 L 24 4 L 20 7" strokeWidth="2" />
+                    <path d="M 72 20 V 10 Q 72 4, 80 4 H 86" />
+                    <path d="M 80 1 L 76 4 L 80 7" strokeWidth="2" />
+                    <rect x="18" y="21" width="64" height="18" rx="5" fill="currentColor" fillOpacity="0.3" />
+                    <rect x="12" y="25" width="6" height="10" rx="1.5" fill="currentColor" />
+                    <rect x="82" y="25" width="6" height="10" rx="1.5" fill="currentColor" />
+                    <rect x="18" y="39" width="64" height="71" rx="9" fill="currentColor" fillOpacity="0.15" />
+                    <line x1="20" y1="54" x2="80" y2="54" />
+                    <circle cx="34" cy="63" r="3" fill="currentColor" />
+                    <circle cx="50" cy="63" r="3" fill="currentColor" />
+                    <circle cx="66" cy="63" r="3" fill="currentColor" />
+                    <line x1="20" y1="72" x2="80" y2="72" />
+                    <line x1="28" y1="74" x2="34" y2="86" strokeWidth="2" />
+                    <line x1="48" y1="74" x2="54" y2="86" strokeWidth="2" />
+                    <line x1="68" y1="74" x2="74" y2="86" strokeWidth="2" />
+                    <line x1="20" y1="88" x2="80" y2="88" />
+                    <circle cx="50" cy="99" r="6" strokeWidth="2" />
+                  </svg>
                 </div>
                 <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
                   DIŞ FİLTRE

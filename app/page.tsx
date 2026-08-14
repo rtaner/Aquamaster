@@ -17,6 +17,7 @@ import {
   Scale,
   FileText,
   BarChart3,
+  Waves,
 } from "lucide-react";
 
 import { PumpSetting, DosingLog, ActiveDosingState, ScheduleItem } from "@/types/aquamaster";
@@ -31,10 +32,12 @@ import MobileBottomNav from "./components/MobileBottomNav";
 import TuyaSocketsCard from "./components/TuyaSocketsCard";
 import TuyaSchedulerCard from "./components/TuyaSchedulerCard";
 import TemperatureTab from "./components/TemperatureTab";
+import WaterQualityTab from "./components/WaterQualityTab";
 
 import DashboardTab from "./components/DashboardTab";
 import AnalyticsTab from "./components/AnalyticsTab";
 import { TuyaStripDeviceState, TuyaDeviceState, TuyaSocketSchedule } from "@/types/aquamaster";
+
 
 
 
@@ -46,7 +49,7 @@ const DEFAULT_PUMP_SETTINGS: { [key: number]: PumpSetting } = {
 };
 
 export default function AquaMaster() {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "manual" | "sockets" | "temperature" | "calibration" | "logs">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "manual" | "sockets" | "temperature" | "water_quality" | "calibration" | "logs">("dashboard");
 
 
   const [loading, setLoading] = useState<number | null>(null);
@@ -60,6 +63,10 @@ export default function AquaMaster() {
   const [deviceIp, setDeviceIp] = useState<string | null>(null);
   const [lastSeenTime, setLastSeenTime] = useState<number | null>(null);
   const [temperature, setTemperature] = useState<number | null>(null);
+  const [tds, setTds] = useState<number | null>(null);
+  const [ec, setEc] = useState<number | null>(null);
+  const [waterChangeThreshold, setWaterChangeThreshold] = useState<number>(400);
+
 
   // Tuya Cihazları ve Zamanlayıcı State'leri
   const [filterDevice, setFilterDevice] = useState<TuyaDeviceState | null>(null);
@@ -223,25 +230,35 @@ export default function AquaMaster() {
     }
   };
 
-  // 1. Hydration tamamlandıktan sonra localStorage'dan yükle
+  // 1. Hydration tamamlandıktan sonra pump_settings yükle
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("aquamaster_pump_settings");
-      if (saved) {
-        const parsed = JSON.parse(saved);
+      const savedPumps = localStorage.getItem("aquamaster_pump_settings");
+      if (savedPumps) {
+        const parsed = JSON.parse(savedPumps);
         setPumpSettings((prev) => ({ ...prev, ...parsed }));
       }
     } catch (e) { }
     setIsLoaded(true);
   }, []);
 
-  // 2. Yalnızca yükleme tamamlandıktan sonra localStorage'a kaydet
+  // 2. Pompa ayarlarını localStorage'a kaydet
   useEffect(() => {
     if (!isLoaded) return;
     try {
       localStorage.setItem("aquamaster_pump_settings", JSON.stringify(pumpSettings));
     } catch (e) { }
   }, [pumpSettings, isLoaded]);
+
+  // Eşik Değerini Doğrudan Supabase Veritabanına Kaydetme (Merkezi Yönetim)
+  const handleSetWaterChangeThreshold = async (val: number) => {
+    setWaterChangeThreshold(val);
+    try {
+      await supabase.from("device_status").update({ tds_threshold: val }).eq("id", 1);
+    } catch (e) { }
+  };
+
+
 
   // Sayfa Yüklendiğinde ve Aralıklarla Verileri Çek
   useEffect(() => {
@@ -344,9 +361,33 @@ export default function AquaMaster() {
           }
         }
 
+        // TDS ve EC Su Kalitesi Verisi
+        if (data.tds !== undefined && data.tds !== null) {
+          const tdsVal = Number(data.tds);
+          if (!isNaN(tdsVal) && tdsVal >= 0) {
+            setTds(tdsVal);
+          }
+        }
+
+        if (data.ec !== undefined && data.ec !== null) {
+          const ecVal = Number(data.ec);
+          if (!isNaN(ecVal) && ecVal >= 0) {
+            setEc(ecVal);
+          }
+        }
+
+        if (data.tds_threshold !== undefined && data.tds_threshold !== null) {
+          const threshVal = Number(data.tds_threshold);
+          if (!isNaN(threshVal) && threshVal > 0) {
+            setWaterChangeThreshold(threshVal);
+          }
+        }
+
         const now = new Date().getTime();
         const diffSec = (now - lastSeen) / 1000;
         setIsOnline(diffSec < 35);
+
+
 
 
       } else {
@@ -761,6 +802,8 @@ export default function AquaMaster() {
         deviceIp={deviceIp}
         lastSeenTime={lastSeenTime}
         temperature={temperature}
+        tds={tds}
+        ec={ec}
         currentTime={currentTime}
         onOpenLogs={() => setActiveTab("logs")}
         onEmergencyStop={handleEmergencyStop}
@@ -789,13 +832,14 @@ export default function AquaMaster() {
         )}
 
         {/* Tab Butonları (Masaüstü/Tablet Görünümü) */}
-        <div className="hidden sm:flex glass-panel p-1.5 rounded-2xl items-center justify-between border border-cyan-500/20 max-w-4xl mx-auto">
+        <div className="hidden sm:flex glass-panel p-1.5 rounded-2xl items-center justify-between border border-cyan-500/20 max-w-5xl mx-auto">
           {[
             { id: "dashboard", title: "Ana Ekran", icon: LayoutDashboard },
+            { id: "water_quality", title: "Su Kalitesi (TDS/EC)", icon: Waves },
             { id: "manual", title: "Gübre & Dozaj", icon: Droplets },
             { id: "sockets", title: "Prizler & Aydınlatma", icon: Zap },
             { id: "calibration", title: "Kalibrasyon Sihirbazı", icon: Scale },
-            { id: "temperature", title: "Analiz", icon: BarChart3 },
+            { id: "temperature", title: "Sıcaklık & Analiz", icon: BarChart3 },
           ].map((tab) => {
 
             const Icon = tab.icon;
@@ -822,6 +866,9 @@ export default function AquaMaster() {
         {activeTab === "dashboard" && (
           <DashboardTab
             temperature={temperature}
+            tds={tds}
+            ec={ec}
+            waterChangeThreshold={waterChangeThreshold}
             isOnline={isOnline}
             deviceIp={deviceIp}
             lastSeenTime={lastSeenTime}
@@ -839,6 +886,23 @@ export default function AquaMaster() {
             onNotify={bildirimGoster}
           />
         )}
+
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 0.5: SU KALİTESİ (TDS & EC) TREND ANALİZ TABI */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {activeTab === "water_quality" && (
+          <WaterQualityTab
+            currentTds={tds}
+            currentEc={ec}
+            currentTemp={temperature}
+            deviceIp={deviceIp}
+            waterChangeThreshold={waterChangeThreshold}
+            onUpdateThreshold={handleSetWaterChangeThreshold}
+            onNotify={bildirimGoster}
+          />
+        )}
+
+
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {/* TAB 1: GÜBRE & DOZAJ KARTLARI (4 KANAL) VE GÜBRE ZAMANLAYICI PROGRAMLARI */}

@@ -1431,8 +1431,12 @@ export default function DosingLogsTab({
                       <ArrowUpDown className="w-3 h-3 text-cyan-400" />
                     </div>
                   </th>
+
+                  {/* TDS Etkisi (Δ PPM) */}
+                  <th className="pb-3 text-cyan-300 font-semibold">TDS Etkisi (Δ)</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-slate-800/60">
                 {paginatedLogs.length === 0 ? (
                   <tr>
@@ -1513,9 +1517,31 @@ export default function DosingLogsTab({
                             </span>
                           )}
                         </td>
+
+                        {/* TDS Etkisi (Δ PPM) */}
+                        <td className="py-3">
+                          {log.tds_delta !== undefined && log.tds_delta !== null ? (
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              log.tds_delta > 0
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                : log.tds_delta < 0
+                                ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                                : "bg-slate-800 text-slate-300 border-slate-700"
+                            }`}>
+                              {log.tds_delta > 0 ? `+${log.tds_delta.toFixed(1)}` : log.tds_delta.toFixed(1)} PPM
+                            </span>
+                          ) : log.tds_before !== undefined ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 animate-pulse">
+                              ⏳ 10 dk bekliyor
+                            </span>
+                          ) : (
+                            <span className="text-slate-600 text-[10px]">--</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })
+
                 )}
               </tbody>
             </table>
