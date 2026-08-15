@@ -47,6 +47,7 @@ export default function MobileBottomNav({ activeTab, setActiveTab }: MobileBotto
 
               <div className="relative z-10 flex flex-col items-center gap-0.5">
                 <Icon
+                  strokeWidth={2}
                   className={`w-5 h-5 transition-transform duration-200 ${
                     isActive ? "scale-110 text-cyan-300 drop-shadow-[0_0_8px_rgba(56,189,248,0.7)]" : "opacity-80"
                   }`}
@@ -55,6 +56,7 @@ export default function MobileBottomNav({ activeTab, setActiveTab }: MobileBotto
                   {tab.label}
                 </span>
               </div>
+
 
               {/* Aktif Nokta Göstergesi */}
               {isActive && (

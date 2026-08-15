@@ -202,14 +202,17 @@ export default function WaterQualityTab({
   const effectiveEc = currentEc ?? (currentTds ? currentTds / 0.5 : logs.length > 0 ? Number(logs[0].ec) : 0);
   const isWaterChangeNeeded = effectiveTds >= waterChangeThreshold;
 
+  // Dinamik Akvaryum Tipine Göre Otomatik Ölçeklenen Rozet Sistemi
   const getTdsBadge = (tds: number) => {
+    const idealUpper = Math.round(waterChangeThreshold * 0.75);
     if (tds < 60) return { label: "Saf / Osmos Su", color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" };
-    if (tds <= 350) return { label: "İdeal Akvaryum Suyu", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
-    if (tds <= waterChangeThreshold) return { label: "Yüksek Mineral", color: "bg-amber-500/20 text-amber-400 border-amber-500/30" };
+    if (tds <= idealUpper) return { label: "İdeal Akvaryum Suyu", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" };
+    if (tds < waterChangeThreshold) return { label: "Yüksek Mineral", color: "bg-amber-500/20 text-amber-400 border-amber-500/30" };
     return { label: "Su Değişimi Gerekli!", color: "bg-rose-500/20 text-rose-400 border-rose-500/30 animate-pulse" };
   };
 
   const tdsBadge = getTdsBadge(effectiveTds);
+
 
   const chartPoints = useMemo(() => {
     if (filteredLogs.length < 2) return [];
@@ -688,9 +691,54 @@ export default function WaterQualityTab({
                 TDS değeri bu sınırı aştığında sistem otomatik olarak <strong>"⚠️ Su Değişimi Zamanı Geldi"</strong> uyarısı yayınlayacaktır.
               </p>
 
-              <div className="space-y-2">
+              {/* Hazır Akvaryum Profili Seçimi */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-300 block">
+                  Hazır Akvaryum Tipi Profili:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTempThresholdInput(280)}
+                    className={`p-2 rounded-xl text-[11px] font-bold border transition text-center cursor-pointer ${
+                      tempThresholdInput === 280
+                        ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-md shadow-cyan-950/40"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                    }`}
+                  >
+                    🌱 Bitkili / Karides
+                    <span className="block text-[9px] font-normal text-slate-400 mt-0.5">280 PPM Eşik</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTempThresholdInput(400)}
+                    className={`p-2 rounded-xl text-[11px] font-bold border transition text-center cursor-pointer ${
+                      tempThresholdInput === 400
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-md shadow-emerald-950/40"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                    }`}
+                  >
+                    🐠 Karma Tatlı Su
+                    <span className="block text-[9px] font-normal text-slate-400 mt-0.5">400 PPM Eşik</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTempThresholdInput(600)}
+                    className={`p-2 rounded-xl text-[11px] font-bold border transition text-center cursor-pointer ${
+                      tempThresholdInput === 600
+                        ? "bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md shadow-purple-950/40"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                    }`}
+                  >
+                    🏜️ Cichlid / Sert Su
+                    <span className="block text-[9px] font-normal text-slate-400 mt-0.5">600 PPM Eşik</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-1">
                 <label className="text-xs font-semibold text-slate-300 flex justify-between">
-                  <span>TDS Uyarı Sınırı (PPM)</span>
+                  <span>Özel TDS Uyarı Sınırı (PPM)</span>
                   <span className="text-cyan-400 font-bold">{tempThresholdInput} PPM</span>
                 </label>
                 <input
@@ -708,6 +756,7 @@ export default function WaterQualityTab({
                   <span>800 PPM (Çok Yüksek)</span>
                 </div>
               </div>
+
 
               <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 text-xs space-y-1.5">
                 <div className="text-slate-300 font-bold flex items-center gap-1.5">

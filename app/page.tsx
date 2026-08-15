@@ -859,13 +859,41 @@ export default function AquaMaster() {
           })}
         </div>
 
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* TAB 0: MOBİL VE MASAÜSTÜ YÖNETİCİ ÖZET PANELİ (DASHBOARD) */}
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {activeTab === "dashboard" && (
 
+          <DashboardTab
+            temperature={temperature}
+            tds={tds}
+            ec={ec}
+            waterChangeThreshold={waterChangeThreshold}
+            isOnline={isOnline}
+            deviceIp={deviceIp}
+            lastSeenTime={lastSeenTime}
+            currentTime={currentTime}
+            filterDevice={filterDevice}
+            stripDevice={stripDevice}
+            tuyaSchedules={tuyaSchedules}
+            schedules={schedules}
+            pumpSettings={pumpSettings}
 
+            dosingLogs={dosingLogs}
+            onNavigateTab={setActiveTab as any}
+            onToggleFilter={handleToggleFilter}
+            onStartMaintenance={handleStartMaintenance}
+            onToggleChannel={handleToggleStripChannel}
+            onToggleAllStrip={handleToggleAllStrip}
+            onNotify={bildirimGoster}
+          />
+        )}
 
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {/* TAB 1: GÜBRE & DOZAJ KARTLARI (4 KANAL) VE GÜBRE ZAMANLAYICI PROGRAMLARI */}
         {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         {activeTab === "manual" && (
+
           <div className="space-y-6">
             {/* Manuel Dozajlama Kartları */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in">
