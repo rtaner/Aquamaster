@@ -212,7 +212,12 @@ export default function ManualPumpCard({
           {/* Alt Kısım: Manuel Dozaj Miktarı & Başlat Butonu */}
           <div className="border-t border-slate-800/80 pt-3 space-y-2.5">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-semibold text-slate-300">Dozaj Miktarı (ml):</label>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-300 block">Dozaj Miktarı:</label>
+                <span className="text-[10px] font-mono text-emerald-400 font-medium">
+                  ~{(inputMl / (setting.rate || 1.0)).toFixed(2)} sn ({Math.round((inputMl / (setting.rate || 1.0)) * 1000)} ms)
+                </span>
+              </div>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -252,7 +257,7 @@ export default function ManualPumpCard({
                   <Play className="w-4 h-4 fill-current shrink-0" />
                   <div className="flex flex-col items-center leading-tight">
                     <span className="text-sm font-black tracking-wide">Dozla</span>
-                    <span className="text-[10px] font-mono font-bold opacity-90">({inputMl} ml)</span>
+                    <span className="text-[10px] font-mono font-bold opacity-90">({inputMl} ml • {(inputMl / (setting.rate || 1.0)).toFixed(1)} sn)</span>
                   </div>
                 </>
               )}

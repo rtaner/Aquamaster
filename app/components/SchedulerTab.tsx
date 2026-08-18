@@ -424,9 +424,10 @@ export default function SchedulerTab({
     e.preventDefault();
     setSaving(true);
     const rate = pumpSettings[schedPump]?.rate || 1.0;
-    const durationSeconds = Math.max(1, Math.round(schedMl / rate));
+    const durationSeconds = Math.max(0.1, Number((schedMl / rate).toFixed(2)));
+    const durationMs = Math.max(100, Math.round((schedMl / rate) * 1000));
 
-    const scheduleData: Partial<ScheduleItem> = {
+    const scheduleData: any = {
       pump_id: schedPump,
       run_time: schedTime,
       duration_seconds: durationSeconds,
@@ -450,7 +451,7 @@ export default function SchedulerTab({
 
   const selectedPumpSetting = pumpSettings[schedPump] || { label: `${schedPump}. Pompa`, color: "cyan" };
   const currentRate = selectedPumpSetting.rate || 1.0;
-  const estimatedSeconds = Math.max(1, Math.round(schedMl / currentRate));
+  const estimatedSeconds = (schedMl / currentRate).toFixed(1);
 
   return (
     <div className="space-y-8 animate-in fade-in">

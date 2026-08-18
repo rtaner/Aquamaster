@@ -99,6 +99,21 @@ export interface WaterQualityLog {
   created_at?: string;
 }
 
+export interface ManualWaterTest {
+  id?: string;
+  test_date: string;
+  ph?: number | null;
+  kh?: number | null;
+  gh?: number | null;
+  no3?: number | null;
+  po4?: number | null;
+  fe?: number | null;
+  k?: number | null;
+  co2_calculated?: number | null;
+  notes?: string;
+  created_at?: string;
+}
+
 
 
 

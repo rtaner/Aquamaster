@@ -536,7 +536,8 @@ export default function AquaMaster() {
 
     const setting = pumpSettings[pumpId] || DEFAULT_PUMP_SETTINGS[pumpId];
     const rate = setting.rate || 1.0;
-    const durationSeconds = Math.max(1, Math.round(targetMl / rate));
+    const durationSeconds = Math.max(0.1, Number((targetMl / rate).toFixed(2)));
+    const durationMs = Math.max(100, Math.round((targetMl / rate) * 1000));
 
     let delaySeconds = 5;
     if (isOnline && lastSeenTime) {
@@ -545,13 +546,13 @@ export default function AquaMaster() {
       delaySeconds = Math.max(1, Math.ceil(10 - (elapsedSec % 10)));
     }
 
-    const totalCountdown = delaySeconds + durationSeconds;
+    const totalCountdown = delaySeconds + Math.ceil(durationSeconds);
 
     const now = new Date();
     now.setMinutes(now.getMinutes() + 1);
     const hedefSaat = now.toTimeString().split(" ")[0];
 
-    // 1. ESP32 emir ekle
+    // 1. ESP32 emir ekle (Hassas ondalıklı saniye formatında)
     const { error } = await supabase.from("schedules").insert([
       {
         pump_id: pumpId,

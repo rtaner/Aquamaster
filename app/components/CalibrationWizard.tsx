@@ -756,11 +756,21 @@ export default function CalibrationWizard({
               </div>
             </div>
 
-            {/* HESAPLANAN AKIŞ HIZI ROZETİ */}
+            {/* HESAPLANAN AKIŞ HIZI VE MİLİSANİYE ROZETİ */}
             {calculatedRate && (
-              <div className="bg-cyan-950/60 border border-cyan-500/40 p-3.5 rounded-2xl text-center font-mono space-y-1 animate-in zoom-in-95 w-full max-w-md">
-                <span className="text-[11px] text-slate-400 block">Hesaplanan Yeni Akış Hızı:</span>
-                <span className="text-xl font-black text-cyan-300">{calculatedRate} ml / saniye</span>
+              <div className="bg-cyan-950/60 border border-cyan-500/40 p-3.5 rounded-2xl text-center font-mono space-y-1.5 animate-in zoom-in-95 w-full max-w-md">
+                <span className="text-[11px] text-slate-400 block">Hesaplanan Yeni Akış Hızı & Hassas Zamanlama:</span>
+                <div className="flex items-center justify-center gap-4">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Akış Hızı</span>
+                    <span className="text-base font-black text-cyan-300">{calculatedRate} ml/sn</span>
+                  </div>
+                  <div className="h-7 w-px bg-slate-700/80" />
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">1 ml Süresi</span>
+                    <span className="text-base font-black text-emerald-300">{Math.round(10000 / valNum)} ms</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>

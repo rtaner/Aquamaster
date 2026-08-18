@@ -18,6 +18,7 @@ import {
   Sparkles,
   Info,
 } from "lucide-react";
+import ManualWaterTestSection from "./ManualWaterTestSection";
 
 interface WaterQualityTabProps {
   currentTds?: number | null;
@@ -599,6 +600,9 @@ export default function WaterQualityTab({
           )}
         </div>
       </div>
+
+      {/* MANUEL KİMYASAL TEST KİTİ (LABORATUVAR) ÖLÇÜM BÖLÜMÜ */}
+      <ManualWaterTestSection onNotify={onNotify} />
 
       {/* SAATLİK LOG GEÇMİŞİ TABLOSU */}
       <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800 overflow-hidden">

@@ -7,6 +7,7 @@
 #include <WebServer.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <ArduinoOTA.h>
 
 // --- GÜVENLİK BİLGİLERİ ---
 const char* ssid = "VODAFONE_5180"; 
@@ -50,11 +51,11 @@ struct HafizaGorev {
   int pump_id;
   int hour;
   int minute;
-  int duration;
-  char schedule_type[12]; // "daily", "weekly", "interval"
-  bool days_of_week[8];   // Index 1..7 (1: Pzt, 2: Sal, ..., 7: Pzr)
+  unsigned long duration_ms; // Milisaniye hassasiyeti (Örn: 2500 ms = 2.5 sn)
+  char schedule_type[12];    // "daily", "weekly", "interval"
+  bool days_of_week[8];      // Index 1..7 (1: Pzt, 2: Sal, ..., 7: Pzr)
   int interval_days;
-  uint32_t start_timestamp; // UNIX timestamp for interval calculation
+  uint32_t start_timestamp;  // UNIX timestamp for interval calculation
 };
 HafizaGorev gunlukProgramlar[20]; // Maksimum 20 görev hafızada tutulabilir
 int hafizadakiGorevSayisi = 0;
@@ -163,7 +164,6 @@ void handleReadTds() {
 }
 
 // --- LOKAL HORTUM ÇEKME (PRIMING) ROUTE ---
-
 void handlePrime() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if (!server.hasArg("pump") || !server.hasArg("state")) {
@@ -242,13 +242,30 @@ void setup() {
   Serial.println("\nWiFi Baglantisi Tamam!");
   Serial.print("Lokal IP Adresi: "); Serial.println(WiFi.localIP());
 
+  // --- KABLOSUZ KOD YÜKLEME (ArduinoOTA) BAŞLATMA ---
+  ArduinoOTA.setHostname("Aquamaster-ESP32");
+  ArduinoOTA.onStart([]() {
+    digitalWrite(POMPA_1, LOW);
+    digitalWrite(POMPA_2, LOW);
+    digitalWrite(POMPA_3, LOW);
+    digitalWrite(POMPA_4, LOW);
+    Serial.println("\n[OTA] Kablosuz Kod Yukleme Basladi...");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[OTA] Kablosuz Yukleme Basariyla Tamamlandi! Yeniden baslatiliyor...");
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA HATA] Hata Kodu [%u]\n", error);
+  });
+  ArduinoOTA.begin();
+  Serial.println("[OTA] ArduinoOTA Kablosuz Kod Yukleme Servisi Aktif!");
+
   // Lokal HTTP Sunucu Rotaları
   server.on("/prime", handlePrime);
   server.on("/stop", handleStop);
   server.on("/read_tds", handleReadTds);
   server.begin();
   Serial.println("Lokal WebServer Baslatildi (Port 80)");
-
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
@@ -272,31 +289,32 @@ void goreviPasifYap(int gorevID) {
   }
 }
 
-// --- NON-BLOCKING & ANLIK ACİL DURDURMA DESTEKLİ MOTOR ÇALIŞTIRMA ---
-void motorCalistir(int motorNo, int saniye) {
+// --- NON-BLOCKING & ANLIK ACİL DURDURMA DESTEKLİ HASSAS MİLİSANİYE MOTOR ÇALIŞTIRMA ---
+void motorCalistir(int motorNo, unsigned long sureMs) {
   int hedefPin = -1;
   if (motorNo == 1) hedefPin = POMPA_1;
   else if (motorNo == 2) hedefPin = POMPA_2;
   else if (motorNo == 3) hedefPin = POMPA_3;
   else if (motorNo == 4) hedefPin = POMPA_4;
 
-  if (hedefPin != -1) {
+  if (hedefPin != -1 && sureMs > 0) {
     emergencyStopActive = false; // Yeni motor başlangıcında bayrağı sıfırla
     Serial.print("\n>>> "); 
     Serial.print(motorNo); Serial.print(". POMPA "); 
-    Serial.print(saniye); Serial.println(" SN CALISIYOR... <<<");
+    Serial.print(sureMs); Serial.print(" MS (");
+    Serial.print((float)sureMs / 1000.0, 2); Serial.println(" SN) CALISIYOR... <<<");
     
     digitalWrite(hedefPin, HIGH); 
     
-    // delay(saniye * 1000) YERİNE KESİNTİSİZ DİNLEYEN SAYAÇ:
     unsigned long startMs = millis();
-    while (millis() - startMs < (unsigned long)saniye * 1000) {
+    while (millis() - startMs < sureMs) {
       server.handleClient(); // Acil durdurma veya hortum çekme HTTP isteklerini anında yakalar!
+      ArduinoOTA.handle();   // OTA dinleyicisi
       if (emergencyStopActive) {
         Serial.println("[KESINTI] Acil durdurma tetiklendi, motor calisirken aninda durduruldu!");
         break;
       }
-      delay(10);
+      delay(5); // 5ms hassas kontrol çözünürlüğü
     }
     
     digitalWrite(hedefPin, LOW);  
@@ -309,13 +327,14 @@ struct SonDozlamaTakip {
   unsigned long baslangicMs;
   float tdsBefore;
   int pumpId;
-  int durationSeconds;
+  unsigned long durationMs;
 };
 SonDozlamaTakip sonDozlama = {false, 0, 0.0, 0, 0};
 
-void logEkle(int pumpId, int durationSeconds) {
+void logEkle(int pumpId, unsigned long durationMs) {
   if (WiFi.status() == WL_CONNECTED) {
     float tdsBefore = suTdsPpm;
+    float durationSec = (float)durationMs / 1000.0;
     HTTPClient http;
     String endpoint = supabaseUrl + "/rest/v1/dosing_logs";
     http.begin(endpoint);
@@ -323,7 +342,7 @@ void logEkle(int pumpId, int durationSeconds) {
     http.addHeader("Authorization", "Bearer " + supabaseKey);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Prefer", "return=minimal");
-    String body = "{\"pump_id\":" + String(pumpId) + ",\"duration_seconds\":" + String(durationSeconds) + ",\"ml_amount\":" + String(durationSeconds) + ",\"mode\":\"Zamanlanmış\",\"tds_before\":" + String(tdsBefore, 1) + "}";
+    String body = "{\"pump_id\":" + String(pumpId) + ",\"duration_seconds\":" + String(durationSec, 2) + ",\"ml_amount\":" + String(durationSec, 2) + ",\"mode\":\"Zamanlanmış\",\"tds_before\":" + String(tdsBefore, 1) + "}";
     http.POST(body);
     http.end();
 
@@ -332,7 +351,7 @@ void logEkle(int pumpId, int durationSeconds) {
     sonDozlama.baslangicMs = millis();
     sonDozlama.tdsBefore = tdsBefore;
     sonDozlama.pumpId = pumpId;
-    sonDozlama.durationSeconds = durationSeconds;
+    sonDozlama.durationMs = durationMs;
     Serial.println("\n[DOZAJ TAKİP] Dozlama yapıldı (TDS Öncesi: " + String(tdsBefore, 1) + " PPM). 10 dakika sonra otomatik etki ölçümü yapılacak...");
   }
 }
@@ -432,6 +451,7 @@ void suKalitesiGonder() {
 
 
 void loop() {
+  ArduinoOTA.handle(); // Kablosuz güncelleme isteklerini dinle
   DateTime now = rtc.now(); 
   server.handleClient(); // Lokal HTTP İsteklerini Dinle
 
@@ -474,13 +494,24 @@ void loop() {
           for (JsonObject item : doc.as<JsonArray>()) {
             int id = item["id"];
             int pump_id = item["pump_id"];
-            int duration = item["duration_seconds"];
+            
+            // Hassas süre hesaplama: duration_ms varsa doğrudan al, yoksa duration_seconds (ondalıklı/tam) üzerinden milisaniyeye çevir
+            unsigned long durationMs = 0;
+            if (item.containsKey("duration_ms") && !item["duration_ms"].isNull()) {
+              durationMs = item["duration_ms"].as<unsigned long>();
+            } else if (item.containsKey("duration_seconds") && !item["duration_seconds"].isNull()) {
+              float dSec = item["duration_seconds"].as<float>();
+              durationMs = (unsigned long)(dSec * 1000.0f);
+            }
+            if (durationMs < 50) durationMs = 50; // Donanımsal alt sınır
+
             bool is_one_time = item["is_one_time"];
             
-            // Eğer manuel anlık tetikleme ise anında yap ve veritabanından sil!
+            // Eğer manuel anlık tetikleme ise anında yap ve veritabanından pasife çek!
             if (is_one_time == true) {
-              Serial.println("\n[ANLIK GOREV] Arayuzden manuel tetikleme geldi!");
-              motorCalistir(pump_id, duration);
+              Serial.print("\n[ANLIK GOREV] Arayuzden manuel tetikleme geldi! Sure: ");
+              Serial.print(durationMs); Serial.println(" ms");
+              motorCalistir(pump_id, durationMs);
               goreviPasifYap(id); 
             } 
             // Eğer programlı görev ise, saati geldiğinde yapmak üzere HAFIZAYA AL
@@ -489,7 +520,7 @@ void loop() {
               geciciHafiza[geciciGorevSayisi].pump_id = pump_id;
               geciciHafiza[geciciGorevSayisi].hour = run_time.substring(0, 2).toInt();
               geciciHafiza[geciciGorevSayisi].minute = run_time.substring(3, 5).toInt();
-              geciciHafiza[geciciGorevSayisi].duration = duration;
+              geciciHafiza[geciciGorevSayisi].duration_ms = durationMs;
 
               // Esnek Zamanlama Alanları
               String stype = item["schedule_type"] | "daily";
@@ -578,7 +609,7 @@ void loop() {
 
 
 
-  // --- 3. AŞAMA: OFFLINE HAFIZA KONTROLÜ VE MOTOR TETİKLEME (Her Saniye) ---
+  // --- 5. AŞAMA: OFFLINE HAFIZA KONTROLÜ VE MOTOR TETİKLEME (Her Saniye) ---
   if (millis() - sonGorevKontrol > 1000) {
     sonGorevKontrol = millis();
     
@@ -619,8 +650,8 @@ void loop() {
 
           if (calismaliMi) {
             Serial.println("\n[OTOMATIK PROGRAM] Hafizadaki gorev calistiriliyor!");
-            motorCalistir(pId, gunlukProgramlar[i].duration);
-            logEkle(pId, gunlukProgramlar[i].duration); // Otomatik çalıştırma log kaydını Supabase'e ekle
+            motorCalistir(pId, gunlukProgramlar[i].duration_ms);
+            logEkle(pId, gunlukProgramlar[i].duration_ms); // Otomatik çalıştırma log kaydını Supabase'e ekle
             sonCalisanDakika[pId] = now.minute();
           }
         }

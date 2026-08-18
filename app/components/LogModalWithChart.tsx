@@ -211,7 +211,7 @@ export default function LogModalWithChart({
                       +{log.ml_amount} ml
                     </p>
                     <p className="text-[11px] text-slate-500 font-mono">
-                      {log.duration_seconds} saniye
+                      {Number(log.duration_seconds || 0).toFixed(1)} sn ({Math.round(Number(log.duration_seconds || 0) * 1000)} ms)
                     </p>
                   </div>
                 </div>

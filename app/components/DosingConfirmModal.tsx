@@ -22,7 +22,9 @@ export default function DosingConfirmModal({
 
   const maxLimit = pumpSetting.max_limit_ml || 50;
   const isExceedingLimit = targetMl > maxLimit;
-  const estimatedSeconds = Math.max(1, Math.round(targetMl / (pumpSetting.rate || 1.0)));
+  const rate = pumpSetting.rate || 1.0;
+  const exactDurationSec = Number((targetMl / rate).toFixed(2));
+  const exactDurationMs = Math.round((targetMl / rate) * 1000);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -53,12 +55,18 @@ export default function DosingConfirmModal({
             <span className="text-white font-bold">{pumpSetting.label} (Kanal {pumpSetting.pump_id})</span>
           </div>
           <div className="flex justify-between border-b border-slate-800 pb-2">
-            <span className="text-slate-400">Dozaj Miktarı:</span>
-            <span className="text-cyan-300 font-bold">{targetMl} ml</span>
+            <span className="text-slate-400">Pompa Akış Hızı:</span>
+            <span className="text-slate-200 font-semibold">{rate.toFixed(3)} ml/sn</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Tahmini Çalışma Süresi:</span>
-            <span className="text-emerald-400 font-bold">~{estimatedSeconds} saniye</span>
+          <div className="flex justify-between border-b border-slate-800 pb-2">
+            <span className="text-slate-400">Dozaj Miktarı:</span>
+            <span className="text-cyan-300 font-bold text-sm">{targetMl} ml</span>
+          </div>
+          <div className="flex justify-between items-center pt-0.5">
+            <span className="text-slate-400">Hassas Çalışma Süresi:</span>
+            <span className="text-emerald-400 font-bold text-sm">
+              {exactDurationSec} sn <span className="text-[11px] text-emerald-300/80 font-normal">({exactDurationMs} ms)</span>
+            </span>
           </div>
         </div>
 
