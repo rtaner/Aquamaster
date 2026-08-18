@@ -221,27 +221,52 @@ export default function ManualPumpCard({
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setInputMl((prev) => Math.max(1, prev - 5))}
+                  onClick={() => setInputMl((prev) => Math.max(0.5, Math.round((prev - 1) * 10) / 10))}
                   className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 min-w-[36px] min-h-[36px] rounded-lg border border-slate-700/80 text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                  title="1 ml Azalt"
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
                 <input
                   type="number"
-                  min="1"
+                  step="0.5"
+                  min="0.1"
                   max={setting.max_limit_ml || 200}
                   value={inputMl}
-                  onChange={(e) => setInputMl(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setInputMl(isNaN(val) ? 0 : Math.max(0.1, val));
+                  }}
+                  onFocus={(e) => e.target.select()}
                   className="w-16 h-[36px] bg-slate-950 border border-slate-700/80 rounded-lg p-1 text-center font-mono font-bold text-xs text-white focus:outline-none focus:border-cyan-400"
                 />
                 <button
                   type="button"
-                  onClick={() => setInputMl((prev) => prev + 5)}
+                  onClick={() => setInputMl((prev) => Math.round((prev + 1) * 10) / 10)}
                   className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 min-w-[36px] min-h-[36px] rounded-lg border border-slate-700/80 text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                  title="1 ml Arttır"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
+
+            {/* Hızlı ml Presetleri */}
+            <div className="flex items-center justify-between gap-1 text-[10px] font-mono">
+              {[2.5, 5, 10, 15, 20].map((presetVal) => (
+                <button
+                  key={presetVal}
+                  type="button"
+                  onClick={() => setInputMl(presetVal)}
+                  className={`flex-1 py-1 rounded-md border text-center transition cursor-pointer ${
+                    inputMl === presetVal
+                      ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-bold"
+                      : "bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200"
+                  }`}
+                >
+                  {presetVal}ml
+                </button>
+              ))}
             </div>
 
             <button

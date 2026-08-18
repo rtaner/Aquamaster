@@ -32,6 +32,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import { PumpSetting, ScheduleItem } from "@/types/aquamaster";
+import ClockTimePickerModal from "./ClockTimePickerModal";
 
 interface SchedulerTabProps {
   schedules: ScheduleItem[];
@@ -143,6 +144,9 @@ export default function SchedulerTab({
     conflictingTime: string;
     suggestedTime: string;
   } | null>(null);
+
+  // Saat Seçici Simülasyon Modalı
+  const [isClockModalOpen, setIsClockModalOpen] = useState<boolean>(false);
 
   const monthNamesTr = useMemo(() => [
     "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -534,96 +538,192 @@ export default function SchedulerTab({
 
             {/* Sağ Taraf: Çalışma Saati & Dozaj Miktarı (50-50 Yan Yana) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Çalışma Saati */}
+              {/* Çalışma Saati (Doğrudan Klavye ile Yazma + Saat Simülasyonu Butonu) */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 whitespace-nowrap">Çalışma Saati</label>
-                <div className="bg-slate-950/90 border border-slate-800/80 rounded-2xl p-3 px-4 flex items-center justify-center gap-4 shadow-inner h-[92px]">
-                  <div className="w-9 h-9 rounded-full border border-slate-800 flex items-center justify-center text-slate-400 shrink-0">
-                    <Clock className="w-5 h-5" />
-                  </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-300 whitespace-nowrap">Çalışma Saati:</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsClockModalOpen(true)}
+                    className="text-[11px] text-cyan-400 hover:text-cyan-300 font-mono font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Saat Kadrânı</span>
+                  </button>
+                </div>
 
-                  <div className="flex items-center gap-2 font-mono">
-                    {/* Saat Stepper */}
-                    <div className="flex flex-col items-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const [h, m] = schedTime.split(":").map(Number);
-                          const newH = (h + 1) % 24;
-                          setSchedTime(`${String(newH).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+                <div className="bg-slate-950/90 border border-slate-800/80 rounded-2xl p-2.5 px-3 flex flex-col justify-between shadow-inner min-h-[92px] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    {/* Saat & Dakika Doğrudan Klavye Girişi */}
+                    <div className="flex items-center gap-1.5 font-mono">
+                      {/* SAAT INPUT */}
+                      <input
+                        type="number"
+                        min="0"
+                        max="23"
+                        value={schedTime.split(":")[0]}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const hNum = parseInt(val, 10);
+                          const cleanH = isNaN(hNum) ? "00" : String(Math.min(23, Math.max(0, hNum))).padStart(2, "0");
+                          const currentM = schedTime.split(":")[1] || "00";
+                          setSchedTime(`${cleanH}:${currentM}`);
                         }}
-                        className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer select-none"
-                      >
-                        ▲
-                      </button>
-                      <span className="text-xl font-black text-white tracking-widest">{schedTime.split(":")[0]}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const [h, m] = schedTime.split(":").map(Number);
-                          const newH = (h - 1 + 24) % 24;
-                          setSchedTime(`${String(newH).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+                        onFocus={(e) => e.target.select()}
+                        className="w-12 h-9 bg-slate-900 border border-slate-700/80 rounded-xl text-center text-lg font-black text-white focus:outline-none focus:border-cyan-400"
+                        title="Saat (0-23)"
+                      />
+
+                      <span className="text-lg font-black text-cyan-400">:</span>
+
+                      {/* DAKİKA INPUT */}
+                      <input
+                        type="number"
+                        min="0"
+                        max="59"
+                        step="5"
+                        value={schedTime.split(":")[1]}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const mNum = parseInt(val, 10);
+                          const cleanM = isNaN(mNum) ? "00" : String(Math.min(59, Math.max(0, mNum))).padStart(2, "0");
+                          const currentH = schedTime.split(":")[0] || "08";
+                          setSchedTime(`${currentH}:${cleanM}`);
                         }}
-                        className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer select-none"
-                      >
-                        ▼
-                      </button>
+                        onFocus={(e) => e.target.select()}
+                        className="w-12 h-9 bg-slate-900 border border-slate-700/80 rounded-xl text-center text-lg font-black text-white focus:outline-none focus:border-cyan-400"
+                        title="Dakika (0-59)"
+                      />
                     </div>
 
-                    <span className="text-xl font-black text-cyan-400 mb-0.5">:</span>
-
-                    {/* Dakika Stepper */}
-                    <div className="flex flex-col items-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const [h, m] = schedTime.split(":").map(Number);
-                          const newM = (m + 5) % 60;
-                          setSchedTime(`${String(h).padStart(2, "0")}:${String(newM).padStart(2, "0")}`);
-                        }}
-                        className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer select-none"
-                      >
-                        ▲
-                      </button>
-                      <span className="text-xl font-black text-white tracking-widest">{schedTime.split(":")[1]}</span>
+                    {/* Hızlı Stepper Butonları */}
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => {
                           const [h, m] = schedTime.split(":").map(Number);
                           const newM = (m - 5 + 60) % 60;
-                          setSchedTime(`${String(h).padStart(2, "0")}:${String(newM).padStart(2, "0")}`);
+                          const newH = m - 5 < 0 ? (h - 1 + 24) % 24 : h;
+                          setSchedTime(`${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`);
                         }}
-                        className="text-slate-400 hover:text-white text-xs p-1 cursor-pointer select-none"
+                        className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center cursor-pointer active:scale-95"
+                        title="-5 Dakika"
                       >
-                        ▼
+                        -5m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const [h, m] = schedTime.split(":").map(Number);
+                          const newM = (m + 5) % 60;
+                          const newH = m + 5 >= 60 ? (h + 1) % 24 : h;
+                          setSchedTime(`${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`);
+                        }}
+                        className="w-7 h-7 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center cursor-pointer active:scale-95"
+                        title="+5 Dakika"
+                      >
+                        +5m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsClockModalOpen(true)}
+                        className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-500/30 transition cursor-pointer"
+                        title="Saat Seçici Simülasyonu Aç"
+                      >
+                        <Clock className="w-4 h-4" />
                       </button>
                     </div>
+                  </div>
+
+                  {/* Hızlı Saat Presetleri */}
+                  <div className="flex items-center gap-1 overflow-x-auto text-[10px] font-mono text-slate-400">
+                    {["08:00", "12:00", "18:00", "21:00"].map((presetTime) => (
+                      <button
+                        key={presetTime}
+                        type="button"
+                        onClick={() => setSchedTime(presetTime)}
+                        className={`px-1.5 py-0.5 rounded-md border transition cursor-pointer ${
+                          schedTime === presetTime
+                            ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-bold"
+                            : "bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200"
+                        }`}
+                      >
+                        {presetTime}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {/* Dozaj Miktarı (ml) */}
+              {/* Dozaj Miktarı (ml) (Doğrudan Klavye Girişi + Stepper + Presetler) */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 whitespace-nowrap">Dozaj Miktarı (ml)</label>
-                <div className="bg-slate-950/90 border border-slate-800/80 rounded-2xl p-3 px-4 flex flex-col justify-center gap-1 shadow-inner h-[92px]">
-                  <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-300 whitespace-nowrap">Dozaj Miktarı (ml):</label>
+                  <span className="text-[10px] font-mono text-emerald-400 font-medium truncate">
+                    ~{estimatedSeconds} sn
+                  </span>
+                </div>
+
+                <div className="bg-slate-950/90 border border-slate-800/80 rounded-2xl p-2.5 px-3 flex flex-col justify-between shadow-inner min-h-[92px] space-y-2">
+                  <div className="flex items-center justify-between gap-1.5">
+                    {/* Azalt Butonu */}
                     <button
                       type="button"
-                      onClick={() => setSchedMl((prev) => Math.max(1, prev - 5))}
+                      onClick={() => setSchedMl((prev) => Math.max(0.5, Math.round((prev - 1) * 10) / 10))}
                       className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer transition-all active:scale-95 shrink-0"
+                      title="1 ml Azalt"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="font-mono text-xl font-black text-white px-2">{schedMl}</span>
+
+                    {/* DOĞRUDAN KLAVYE İLE RAKAM GİRİŞ KUTUSU */}
+                    <div className="flex-1 relative flex items-center justify-center">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0.1"
+                        max="200"
+                        value={schedMl}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setSchedMl(isNaN(val) ? 0 : Math.max(0.1, val));
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        className="w-full bg-slate-900 border border-slate-700/80 rounded-xl py-1 text-center font-mono font-black text-lg text-white focus:outline-none focus:border-cyan-400"
+                      />
+                      <span className="absolute right-2 text-[10px] font-mono text-cyan-400/80 font-bold pointer-events-none">
+                        ml
+                      </span>
+                    </div>
+
+                    {/* Arttır Butonu */}
                     <button
                       type="button"
-                      onClick={() => setSchedMl((prev) => prev + 5)}
+                      onClick={() => setSchedMl((prev) => Math.round((prev + 1) * 10) / 10)}
                       className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold cursor-pointer transition-all active:scale-95 shrink-0"
+                      title="1 ml Arttır"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-mono text-center truncate">Tahmini süre: ~{estimatedSeconds} saniye</p>
+
+                  {/* Hızlı ml Presetleri */}
+                  <div className="flex items-center justify-center gap-1 font-mono text-[10px]">
+                    {[5, 10, 15, 20, 30].map((presetVal) => (
+                      <button
+                        key={presetVal}
+                        type="button"
+                        onClick={() => setSchedMl(presetVal)}
+                        className={`px-2 py-0.5 rounded-md border transition cursor-pointer ${
+                          schedMl === presetVal
+                            ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 font-bold"
+                            : "bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200"
+                        }`}
+                      >
+                        {presetVal}ml
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1173,6 +1273,15 @@ export default function SchedulerTab({
           <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin" />
         </div>
       </footer>
+
+      {/* İNTERAKTİF SAAT VE KADRAN SİMÜLASYON MODALI */}
+      <ClockTimePickerModal
+        isOpen={isClockModalOpen}
+        initialTime={schedTime}
+        title="Dozajlama Saati Seçici"
+        onSave={(newTime) => setSchedTime(newTime)}
+        onClose={() => setIsClockModalOpen(false)}
+      />
     </div>
   );
 }
