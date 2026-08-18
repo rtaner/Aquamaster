@@ -680,7 +680,7 @@ export default function SchedulerTab({
                     <div className="flex-1 relative flex items-center justify-center">
                       <input
                         type="number"
-                        step="0.5"
+                        step="any"
                         min="0.1"
                         max="200"
                         value={schedMl}

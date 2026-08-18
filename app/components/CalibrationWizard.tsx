@@ -717,10 +717,13 @@ export default function CalibrationWizard({
                 <div className="flex-1 relative flex items-center justify-center px-1">
                   <input
                     type="number"
-                    step="0.1"
-                    placeholder="Örn: 8.5"
+                    step="any"
+                    min="0.1"
+                    max="100"
+                    placeholder="10.0"
                     value={measuredMl}
                     onChange={(e) => setMeasuredMl(e.target.value)}
+                    onFocus={(e) => e.target.select()}
                     className="w-full bg-transparent text-center text-xl font-mono font-black text-white focus:outline-none placeholder:text-slate-600"
                   />
                   <span className="text-xs font-mono text-cyan-400 font-bold ml-1 pointer-events-none">ml</span>

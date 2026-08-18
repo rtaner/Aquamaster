@@ -229,7 +229,7 @@ export default function ManualPumpCard({
                 </button>
                 <input
                   type="number"
-                  step="0.5"
+                  step="any"
                   min="0.1"
                   max={setting.max_limit_ml || 200}
                   value={inputMl}
