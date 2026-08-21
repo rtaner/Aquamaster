@@ -1014,7 +1014,7 @@ export default function DosingLogsTab({
                           <div className="h-5 flex items-center justify-center">
                             {dayTotal > 0 && (
                               <span className="text-[10px] font-mono font-black text-cyan-300 bg-cyan-950/90 px-2.5 py-0.5 rounded-full border border-cyan-500/50 shadow-md shadow-cyan-950/60 animate-in zoom-in-95">
-                                {dayTotal} ml
+                                {Number(dayTotal.toFixed(1))} ml
                               </span>
                             )}
                           </div>
@@ -1033,7 +1033,7 @@ export default function DosingLogsTab({
                                   {amount > 0 && (
                                     <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-10 z-30 bg-slate-950 border border-cyan-500/60 px-2.5 py-1 rounded-xl text-[10px] font-mono text-white pointer-events-none transition-all shadow-2xl whitespace-nowrap">
                                       <span className={theme.text}>{setting.label}: </span>
-                                      <span className="font-bold text-white">{amount} ml</span>
+                                      <span className="font-bold text-white">{Number(amount.toFixed(1))} ml</span>
                                     </div>
                                   )}
 
@@ -1530,10 +1530,23 @@ export default function DosingLogsTab({
                             }`}>
                               {log.tds_delta > 0 ? `+${log.tds_delta.toFixed(1)}` : log.tds_delta.toFixed(1)} PPM
                             </span>
-                          ) : log.tds_before !== undefined ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 animate-pulse">
-                              ⏳ 10 dk bekliyor
-                            </span>
+                          ) : log.tds_before !== undefined && log.tds_before !== null ? (
+                            (() => {
+                              const elapsedMinutes = (Date.now() - logDate.getTime()) / (1000 * 60);
+                              if (elapsedMinutes >= 0 && elapsedMinutes <= 15) {
+                                const remain = Math.max(1, Math.ceil(10 - elapsedMinutes));
+                                return (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 animate-pulse">
+                                    ⏳ {remain} dk bekliyor
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="text-slate-500 text-[10px] font-mono" title="Öncesi: +${log.tds_before} PPM (Sonrası ölçülemedi)">
+                                  --
+                                </span>
+                              );
+                            })()
                           ) : (
                             <span className="text-slate-600 text-[10px]">--</span>
                           )}

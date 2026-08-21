@@ -252,6 +252,28 @@ export default function DashboardTab({
 
       if (nextSched) {
         const mlVal = (nextSched.duration_seconds * rate).toFixed(1);
+        const lastLog = dosingLogs?.find((l) => l.pump_id === pumpId);
+        let lastDoseText = "Henüz yapılmadı";
+        let isDosedToday = false;
+
+        if (lastLog && lastLog.created_at) {
+          const logD = new Date(lastLog.created_at);
+          const isToday = logD.toDateString() === now.toDateString();
+          const timeStr = logD.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+          if (isToday) {
+            isDosedToday = true;
+            lastDoseText = `Bugün ${timeStr} (${lastLog.ml_amount} ml)`;
+          } else {
+            const isYesterday = new Date(now.getTime() - 86400000).toDateString() === logD.toDateString();
+            if (isYesterday) {
+              lastDoseText = `Dün ${timeStr} (${lastLog.ml_amount} ml)`;
+            } else {
+              const dateStr = logD.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+              lastDoseText = `${dateStr} ${timeStr} (${lastLog.ml_amount} ml)`;
+            }
+          }
+        }
+
         result.push({
           id: nextSched.id,
           pumpId,
@@ -260,13 +282,15 @@ export default function DashboardTab({
           time: nextSched.run_time,
           isActive: nextSched.is_active,
           color: colors[(pumpId - 1) % colors.length] || colors[0],
+          lastDoseText,
+          isDosedToday,
         });
       }
     }
 
     // Pompa ID'sine göre sırala
     return result.sort((a, b) => a.pumpId - b.pumpId);
-  }, [schedules, pumpSettings, currentTime]);
+  }, [schedules, pumpSettings, currentTime, dosingLogs]);
 
 
 
@@ -563,30 +587,57 @@ export default function DashboardTab({
         </div>
 
 
-        {/* Gübre Zamanlayıcı Listesi */}
+        {/* Gübre Zamanlayıcı Listesi (Son Dozaj Bilgisi & Durum Rozetli) */}
         <div className="space-y-2.5">
           {realDosingSchedules.map((item) => {
             return (
               <div
                 key={item.id}
                 onClick={() => onNavigateTab("manual")}
-                className="bg-gradient-to-r from-[#141f33] to-[#0e1726] p-3.5 rounded-2xl border border-[#1f3150] shadow-[0_6px_16px_rgba(0,0,0,0.35)] flex items-center justify-between text-xs cursor-pointer hover:border-[#2d4670] transition duration-200"
+                className="bg-gradient-to-r from-[#141f33] to-[#0e1726] p-3.5 rounded-2xl border border-[#1f3150] shadow-[0_6px_16px_rgba(0,0,0,0.35)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs cursor-pointer hover:border-[#2d4670] transition duration-200"
               >
+                {/* Sol Taraf: Pompa İkonu, İsmi & Planlanan Saat / Miktar */}
                 <div className="flex items-center gap-3">
                   <div className={`p-2.5 rounded-xl border ${item.color}`}>
                     <BeakerSolid className="w-4 h-4" />
                   </div>
-                  <span className="font-extrabold text-slate-200 tracking-wide">{item.name}</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-slate-200 tracking-wide text-sm">{item.name}</span>
+                      <span className="text-[10px] font-mono text-cyan-400 font-bold bg-cyan-950/80 border border-cyan-500/30 px-1.5 py-0.5 rounded-md">
+                        {item.ml}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-400 text-[11px] font-mono mt-0.5">
+                      <ClockOutline className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Planlanan Saat: <strong className="text-slate-200">{item.time}</strong></span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-4 font-mono">
-                  <span className="font-extrabold text-cyan-400 text-xs sm:text-sm">{item.ml}</span>
-                  <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
-                    <ClockOutline className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{item.time}</span>
+                {/* Sağ Taraf: Son Dozaj Durumu (Yapılıp Yapılmadığı) */}
+                <div className="flex items-center justify-between sm:justify-end gap-3 font-mono border-t sm:border-t-0 border-slate-800/80 pt-2 sm:pt-0">
+                  <div className="text-left sm:text-right">
+                    <span className="text-[10px] text-slate-400 block font-medium">Son Dozaj:</span>
+                    <span className={`text-[11px] font-bold ${item.isDosedToday ? "text-[#00ff88]" : "text-slate-300"}`}>
+                      {item.lastDoseText}
+                    </span>
                   </div>
-                  <div className={`p-1 rounded-full ${item.isActive ? "bg-[#00ff88]/20 text-[#00ff88] border border-[#00ff88]/30 shadow-[0_0_8px_rgba(0,255,136,0.3)]" : "bg-slate-800 text-slate-500 border border-slate-700"}`}>
-                    <Check className="w-3.5 h-3.5" strokeWidth={2} />
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold border flex items-center gap-1 ${
+                        item.isDosedToday
+                          ? "bg-[#00ff88]/15 text-[#00ff88] border-[#00ff88]/40 shadow-[0_0_8px_rgba(0,255,136,0.2)]"
+                          : "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                      }`}
+                    >
+                      {item.isDosedToday ? "✓ Bugün Yapıldı" : "⏳ Bekleniyor"}
+                    </span>
+
+                    <div className={`p-1 rounded-full ${item.isActive ? "bg-[#00ff88]/20 text-[#00ff88] border border-[#00ff88]/30 shadow-[0_0_8px_rgba(0,255,136,0.3)]" : "bg-slate-800 text-slate-500 border border-slate-700"}`}>
+                      <Check className="w-3.5 h-3.5" strokeWidth={2} />
+                    </div>
                   </div>
                 </div>
               </div>

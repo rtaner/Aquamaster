@@ -31,12 +31,13 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
-import { PumpSetting, ScheduleItem } from "@/types/aquamaster";
+import { PumpSetting, ScheduleItem, DosingLog } from "@/types/aquamaster";
 import ClockTimePickerModal from "./ClockTimePickerModal";
 
 interface SchedulerTabProps {
   schedules: ScheduleItem[];
   pumpSettings: { [key: number]: PumpSetting };
+  dosingLogs?: DosingLog[];
   onAddSchedule: (newSchedule: Partial<ScheduleItem>) => Promise<void>;
   onDeleteSchedule: (id: number) => Promise<void>;
   onToggleSchedule?: (id: number, currentActiveState: boolean) => Promise<void>;
@@ -116,6 +117,7 @@ const getDynamicPumpTheme = (colorName?: string) => {
 export default function SchedulerTab({
   schedules,
   pumpSettings,
+  dosingLogs,
   onAddSchedule,
   onDeleteSchedule,
   onToggleSchedule,
@@ -1028,8 +1030,8 @@ export default function SchedulerTab({
                     </div>
                   </div>
 
-                  {/* Saat & Dozaj Miktarı */}
-                  <div className="flex items-center gap-6 font-mono text-xs">
+                  {/* Saat & Dozaj Miktarı & Son Dozaj Durumu */}
+                  <div className="flex flex-wrap items-center gap-4 sm:gap-6 font-mono text-xs">
                     <div className="flex items-center gap-1.5 text-slate-200">
                       <Clock className={`w-3.5 h-3.5 ${theme.text}`} />
                       <span className="font-bold text-sm text-white">{item.run_time}</span>
@@ -1042,6 +1044,29 @@ export default function SchedulerTab({
                       </span>
                       <span className="text-[10px] text-slate-400">(~{item.duration_seconds}s)</span>
                     </div>
+
+                    {/* Son Dozaj Takibi */}
+                    {(() => {
+                      const lastLog = dosingLogs?.find((l) => l.pump_id === item.pump_id);
+                      if (!lastLog || !lastLog.created_at) return null;
+                      const logD = new Date(lastLog.created_at);
+                      const isToday = logD.toDateString() === new Date().toDateString();
+                      const timeStr = logD.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+                      const dateStr = isToday ? "Bugün" : logD.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+
+                      return (
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className={`px-2.5 py-0.5 rounded-full font-bold border flex items-center gap-1 ${
+                            isToday
+                              ? "bg-[#00ff88]/15 text-[#00ff88] border-[#00ff88]/40 shadow-[0_0_8px_rgba(0,255,136,0.2)]"
+                              : "bg-slate-900 text-slate-400 border-slate-700/80"
+                          }`}>
+                            {isToday ? "✓ Son Dozaj: " : "Son Dozaj: "}
+                            <strong className="text-white">{dateStr} {timeStr} ({lastLog.ml_amount} ml)</strong>
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Sonraki Çalışma Geri Sayımı */}
                     <div className="hidden lg:flex flex-col text-[10px]">

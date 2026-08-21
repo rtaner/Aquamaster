@@ -60,7 +60,9 @@ struct HafizaGorev {
 HafizaGorev gunlukProgramlar[20]; // Maksimum 20 görev hafızada tutulabilir
 int hafizadakiGorevSayisi = 0;
 
-// Her pompanın aynı dakika içinde birden fazla çalışmasını engelleyen bağımsız sayaçlar (0 kullanılmaz, 1-2-3-4 için)
+// Her pompanın aynı gün, saat ve dakika içinde birden fazla çalışmasını engelleyen bağımsız sayaçlar (0 kullanılmaz, 1-2-3-4 için)
+int sonCalisanGun[5] = {-1, -1, -1, -1, -1};
+int sonCalisanSaat[5] = {-1, -1, -1, -1, -1};
 int sonCalisanDakika[5] = {-1, -1, -1, -1, -1}; 
 
 // --- BAĞIMSIZ ZAMANLAYICI SAYAÇLARI ---
@@ -326,13 +328,18 @@ struct SonDozlamaTakip {
   bool aktif;
   unsigned long baslangicMs;
   float tdsBefore;
-  int pumpId;
-  unsigned long durationMs;
+  long logId;
 };
-SonDozlamaTakip sonDozlama = {false, 0, 0.0, 0, 0};
+SonDozlamaTakip sonDozlamaKanallar[5] = {
+  {false, 0, 0.0, 0},
+  {false, 0, 0.0, 0},
+  {false, 0, 0.0, 0},
+  {false, 0, 0.0, 0},
+  {false, 0, 0.0, 0}
+};
 
 void logEkle(int pumpId, unsigned long durationMs) {
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED && pumpId >= 1 && pumpId <= 4) {
     float tdsBefore = suTdsPpm;
     float durationSec = (float)durationMs / 1000.0;
     HTTPClient http;
@@ -341,18 +348,30 @@ void logEkle(int pumpId, unsigned long durationMs) {
     http.addHeader("apikey", supabaseKey);
     http.addHeader("Authorization", "Bearer " + supabaseKey);
     http.addHeader("Content-Type", "application/json");
-    http.addHeader("Prefer", "return=minimal");
+    http.addHeader("Prefer", "return=representation");
     String body = "{\"pump_id\":" + String(pumpId) + ",\"duration_seconds\":" + String(durationSec, 2) + ",\"ml_amount\":" + String(durationSec, 2) + ",\"mode\":\"Zamanlanmış\",\"tds_before\":" + String(tdsBefore, 1) + "}";
-    http.POST(body);
+    int httpCode = http.POST(body);
+    long createdId = 0;
+
+    if (httpCode >= 200 && httpCode < 300) {
+      String response = http.getString();
+      DynamicJsonDocument doc(512);
+      if (deserializeJson(doc, response) == DeserializationError::Ok) {
+        if (doc.is<JsonArray>() && doc.size() > 0) {
+          createdId = doc[0]["id"] | 0;
+        } else if (doc.containsKey("id")) {
+          createdId = doc["id"] | 0;
+        }
+      }
+    }
     http.end();
 
-    // 10 Dakikalık (600.000 ms) dozlama sonrası etki takibini başlat
-    sonDozlama.aktif = true;
-    sonDozlama.baslangicMs = millis();
-    sonDozlama.tdsBefore = tdsBefore;
-    sonDozlama.pumpId = pumpId;
-    sonDozlama.durationMs = durationMs;
-    Serial.println("\n[DOZAJ TAKİP] Dozlama yapıldı (TDS Öncesi: " + String(tdsBefore, 1) + " PPM). 10 dakika sonra otomatik etki ölçümü yapılacak...");
+    // 10 Dakikalık (600.000 ms) dozlama sonrası etki takibini kanal bazında başlat
+    sonDozlamaKanallar[pumpId].aktif = true;
+    sonDozlamaKanallar[pumpId].baslangicMs = millis();
+    sonDozlamaKanallar[pumpId].tdsBefore = tdsBefore;
+    sonDozlamaKanallar[pumpId].logId = createdId;
+    Serial.println("\n[DOZAJ TAKİP] " + String(pumpId) + ". Pompa Dozlama yapıldı (TDS Öncesi: " + String(tdsBefore, 1) + " PPM, Log ID: " + String(createdId) + "). 10 dakika sonra otomatik etki ölçümü yapılacak...");
   }
 }
 
@@ -578,32 +597,40 @@ void loop() {
     suKalitesiGonder();
   }
 
-  // --- 4. AŞAMA: DOZLAMA SONRASI 10 DAKİKALIK ETKİ TAKİBİ ---
-  if (sonDozlama.aktif && (millis() - sonDozlama.baslangicMs > 600000)) {
-    sonDozlama.aktif = false;
-    float tdsAfter = 0.0;
-    float ecAfter = 0.0;
-    tdsEcOku(tdsAfter, ecAfter);
-    float tdsDelta = tdsAfter - sonDozlama.tdsBefore;
+  // --- 4. AŞAMA: DOZLAMA SONRASI 10 DAKİKALIK ETKİ TAKİBİ (KANAL BAZLI) ---
+  for (int p = 1; p <= 4; p++) {
+    if (sonDozlamaKanallar[p].aktif && (millis() - sonDozlamaKanallar[p].baslangicMs > 600000)) {
+      sonDozlamaKanallar[p].aktif = false;
+      float tdsAfter = 0.0;
+      float ecAfter = 0.0;
+      tdsEcOku(tdsAfter, ecAfter);
+      float tdsDelta = tdsAfter - sonDozlamaKanallar[p].tdsBefore;
 
-    Serial.print("\n[DOZAJ ETKİSİ] 10 Dakika Doldu! TDS Öncesi: ");
-    Serial.print(sonDozlama.tdsBefore, 1);
-    Serial.print(" PPM | Sonrası: ");
-    Serial.print(tdsAfter, 1);
-    Serial.print(" PPM | Fark: ");
-    Serial.print(tdsDelta, 1);
-    Serial.println(" PPM");
+      Serial.print("\n[DOZAJ ETKİSİ - KANAL " + String(p) + "] 10 Dakika Doldu! TDS Öncesi: ");
+      Serial.print(sonDozlamaKanallar[p].tdsBefore, 1);
+      Serial.print(" PPM | Sonrası: ");
+      Serial.print(tdsAfter, 1);
+      Serial.print(" PPM | Fark: ");
+      Serial.print(tdsDelta, 1);
+      Serial.println(" PPM");
 
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      String endpoint = supabaseUrl + "/rest/v1/dosing_logs?pump_id=eq." + String(sonDozlama.pumpId) + "&order=created_at.desc&limit=1";
-      http.begin(endpoint);
-      http.addHeader("apikey", supabaseKey);
-      http.addHeader("Authorization", "Bearer " + supabaseKey);
-      http.addHeader("Content-Type", "application/json");
-      String body = "{\"tds_after\":" + String(tdsAfter, 1) + ",\"tds_delta\":" + String(tdsDelta, 1) + "}";
-      http.PATCH(body);
-      http.end();
+      if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+        String endpoint;
+        if (sonDozlamaKanallar[p].logId > 0) {
+          endpoint = supabaseUrl + "/rest/v1/dosing_logs?id=eq." + String(sonDozlamaKanallar[p].logId);
+        } else {
+          endpoint = supabaseUrl + "/rest/v1/dosing_logs?pump_id=eq." + String(p) + "&tds_after=is.null";
+        }
+        http.begin(endpoint);
+        http.addHeader("apikey", supabaseKey);
+        http.addHeader("Authorization", "Bearer " + supabaseKey);
+        http.addHeader("Content-Type", "application/json");
+        http.addHeader("Prefer", "return=minimal");
+        String body = "{\"tds_after\":" + String(tdsAfter, 1) + ",\"tds_delta\":" + String(tdsDelta, 1) + "}";
+        http.PATCH(body);
+        http.end();
+      }
     }
   }
 
@@ -618,8 +645,12 @@ void loop() {
       int pId = gunlukProgramlar[i].pump_id;
       
       if(now.hour() == gunlukProgramlar[i].hour && now.minute() == gunlukProgramlar[i].minute) {
-        // Bu motor bu dakika içinde henüz çalışmadıysa zamanlama kuralını denetle!
-        if(sonCalisanDakika[pId] != now.minute()) {
+        // Bu motor BUGÜN BU SAAT VE BU DAKİKADA henüz çalışmadıysa zamanlama kuralını denetle!
+        bool buDakikaCalisti = (sonCalisanGun[pId] == now.day() && 
+                                sonCalisanSaat[pId] == now.hour() && 
+                                sonCalisanDakika[pId] == now.minute());
+
+        if(!buDakikaCalisti) {
           bool calismaliMi = false;
           String stype = String(gunlukProgramlar[i].schedule_type);
 
@@ -644,14 +675,16 @@ void loop() {
               }
             }
           } else {
-            // "daily"
+            // "daily" veya varsayılan her gün
             calismaliMi = true;
           }
 
           if (calismaliMi) {
-            Serial.println("\n[OTOMATIK PROGRAM] Hafizadaki gorev calistiriliyor!");
+            Serial.println("\n[OTOMATIK PROGRAM] Hafizadaki gorev calistiriliyor! Pompa: " + String(pId));
             motorCalistir(pId, gunlukProgramlar[i].duration_ms);
             logEkle(pId, gunlukProgramlar[i].duration_ms); // Otomatik çalıştırma log kaydını Supabase'e ekle
+            sonCalisanGun[pId] = now.day();
+            sonCalisanSaat[pId] = now.hour();
             sonCalisanDakika[pId] = now.minute();
           }
         }

@@ -933,6 +933,7 @@ export default function AquaMaster() {
             <SchedulerTab
               schedules={schedules}
               pumpSettings={pumpSettings}
+              dosingLogs={dosingLogs}
               onAddSchedule={handleAddSchedule}
               onDeleteSchedule={handleDeleteSchedule}
               onToggleSchedule={handleToggleSchedule}
