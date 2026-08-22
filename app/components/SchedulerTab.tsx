@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { PumpSetting, ScheduleItem, DosingLog } from "@/types/aquamaster";
 import ClockTimePickerModal from "./ClockTimePickerModal";
+import { getLogEffectiveMl } from "@/lib/timeUtils";
 
 interface SchedulerTabProps {
   schedules: ScheduleItem[];
@@ -1054,6 +1055,8 @@ export default function SchedulerTab({
                       const timeStr = logD.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
                       const dateStr = isToday ? "Bugün" : logD.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
 
+                      const logMl = getLogEffectiveMl(lastLog, pumpSettings);
+
                       return (
                         <div className="flex items-center gap-1.5 text-[10px]">
                           <span className={`px-2.5 py-0.5 rounded-full font-bold border flex items-center gap-1 ${
@@ -1062,7 +1065,7 @@ export default function SchedulerTab({
                               : "bg-slate-900 text-slate-400 border-slate-700/80"
                           }`}>
                             {isToday ? "✓ Son Dozaj: " : "Son Dozaj: "}
-                            <strong className="text-white">{dateStr} {timeStr} ({lastLog.ml_amount} ml)</strong>
+                            <strong className="text-white">{dateStr} {timeStr} ({logMl} ml)</strong>
                           </span>
                         </div>
                       );

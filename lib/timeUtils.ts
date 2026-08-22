@@ -130,3 +130,30 @@ export function formatRelativeTimestamp(isoDateStr?: string): string {
     minute: "2-digit",
   });
 }
+
+/**
+ * Log kaydındaki gerçek kalibre edilmiş dozaj miktarını (ml) hesaplar.
+ * ESP32 zamanlanmış loglarda duration_seconds üzerinden kalibrasyon hızını uygular.
+ */
+export function getLogEffectiveMl(
+  log: { pump_id: number; ml_amount?: number | null; duration_seconds?: number | null; mode?: string },
+  pumpSettings?: { [key: number]: { rate?: number } }
+): number {
+  const rate = pumpSettings?.[log.pump_id]?.rate || 1.0;
+
+  // Otomatik (Zamanlanmış) dozajlarda ESP süreyi (sn) kaydettiği için akış hızıyla gerçek ml'e dönüştür
+  if (log.mode === "Zamanlanmış" && log.duration_seconds) {
+    return Number((Number(log.duration_seconds) * rate).toFixed(1));
+  }
+
+  // Manuel dozlamalarda ml_amount doğrudan girilen ml değeridir
+  if (log.ml_amount !== undefined && log.ml_amount !== null && Number(log.ml_amount) > 0) {
+    return Number(Number(log.ml_amount).toFixed(1));
+  }
+
+  if (log.duration_seconds && Number(log.duration_seconds) > 0) {
+    return Number((Number(log.duration_seconds) * rate).toFixed(1));
+  }
+
+  return 0;
+}

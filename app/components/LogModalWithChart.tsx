@@ -10,6 +10,7 @@ import {
   Clock 
 } from "lucide-react";
 import { DosingLog, PumpSetting } from "@/types/aquamaster";
+import { getLogEffectiveMl } from "@/lib/timeUtils";
 
 interface LogModalWithChartProps {
   isOpen: boolean;
@@ -41,11 +42,11 @@ export default function LogModalWithChart({
     const totals: { [key: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0 };
     logs.forEach((log) => {
       if (totals[log.pump_id] !== undefined) {
-        totals[log.pump_id] += log.ml_amount;
+        totals[log.pump_id] += getLogEffectiveMl(log, pumpSettings);
       }
     });
     return totals;
-  }, [logs]);
+  }, [logs, pumpSettings]);
 
   const maxTotalMl = Math.max(...Object.values(pumpTotals), 1);
   const totalDosedAll = Object.values(pumpTotals).reduce((a, b) => a + b, 0);
@@ -208,7 +209,7 @@ export default function LogModalWithChart({
 
                   <div className="text-right">
                     <p className="text-sm font-bold text-emerald-400 font-mono">
-                      +{log.ml_amount} ml
+                      +{getLogEffectiveMl(log, pumpSettings)} ml
                     </p>
                     <p className="text-[11px] text-slate-500 font-mono">
                       {Number(log.duration_seconds || 0).toFixed(1)} sn ({Math.round(Number(log.duration_seconds || 0) * 1000)} ms)

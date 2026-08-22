@@ -34,6 +34,7 @@ import {
   BarChart2
 } from "lucide-react";
 import { DosingLog, PumpSetting } from "@/types/aquamaster";
+import { getLogEffectiveMl } from "@/lib/timeUtils";
 
 interface DosingLogsTabProps {
   logs: DosingLog[];
@@ -414,8 +415,8 @@ export default function DosingLogsTab({
         valA = Number(a.pump_id);
         valB = Number(b.pump_id);
       } else if (sortColumn === "ml_amount") {
-        valA = Number(a.ml_amount);
-        valB = Number(b.ml_amount);
+        valA = getLogEffectiveMl(a, pumpSettings);
+        valB = getLogEffectiveMl(b, pumpSettings);
       } else if (sortColumn === "duration_seconds") {
         valA = Number(a.duration_seconds);
         valB = Number(b.duration_seconds);
@@ -467,7 +468,7 @@ export default function DosingLogsTab({
 
   // Detaylı Toplam & İstatistik Hesaplamaları (KPI, Grafikler, Dağılımlar)
   const stats = useMemo(() => {
-    const totalMl = filteredAndSortedLogs.reduce((acc, log) => acc + (Number(log.ml_amount) || 0), 0);
+    const totalMl = filteredAndSortedLogs.reduce((acc, log) => acc + getLogEffectiveMl(log, pumpSettings), 0);
     const totalCount = filteredAndSortedLogs.length;
 
     // Pompa Bazında Toplam Sıvı Tüketimi
@@ -475,7 +476,7 @@ export default function DosingLogsTab({
     filteredAndSortedLogs.forEach((log) => {
       const pId = Number(log.pump_id);
       if (pumpTotals[pId] !== undefined) {
-        pumpTotals[pId] += Number(log.ml_amount) || 0;
+        pumpTotals[pId] += getLogEffectiveMl(log, pumpSettings);
       }
     });
 
@@ -490,17 +491,17 @@ export default function DosingLogsTab({
     });
     const topPumpPct = totalMl > 0 ? ((topPumpMl / totalMl) * 100).toFixed(1) : "0";
 
-    // Günlük Dozaj Verileri (Son 7 Günlük Bar Chart / Isı Haritası) - Yerel Saat ile YYYY-MM-DD Kesin Eşleşme
+    // Günlük Dozaj Verileri (Son 7 Günlük Bar Chart / Isı Haritası) - EN GÜNCEL GÜN EN SOLDA (0: Bugün, 1: Dün...)
     const daysMap: { [dateKey: string]: { label: string; pumps: { [pumpId: number]: number } } } = {};
     const today = new Date();
     
-    for (let i = 6; i >= 0; i--) {
+    for (let i = 0; i < 7; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateKey = getDateKey(d);
       const dayNum = String(d.getDate()).padStart(2, "0");
       const monthShort = d.toLocaleDateString("tr-TR", { month: "short" }).replace(".", "");
-      const dayLabel = `${dayNum} ${monthShort}`;
+      const dayLabel = i === 0 ? "Bugün" : i === 1 ? "Dün" : `${dayNum} ${monthShort}`;
       daysMap[dateKey] = { label: dayLabel, pumps: { 1: 0, 2: 0, 3: 0, 4: 0 } };
     }
 
@@ -512,7 +513,7 @@ export default function DosingLogsTab({
       if (daysMap[dateKey]) {
         const pId = Number(log.pump_id);
         if (daysMap[dateKey].pumps[pId] !== undefined) {
-          daysMap[dateKey].pumps[pId] += Number(log.ml_amount) || 0;
+          daysMap[dateKey].pumps[pId] += getLogEffectiveMl(log, pumpSettings);
         }
       }
     });
@@ -538,39 +539,39 @@ export default function DosingLogsTab({
     const successRate = totalCount > 0 ? ((successCount / totalCount) * 100).toFixed(0) : "100";
 
     return {
-      totalMl,
+      totalMl: Number(totalMl.toFixed(1)),
       totalCount,
       pumpTotals,
       topPumpId,
-      topPumpMl,
+      topPumpMl: Number(topPumpMl.toFixed(1)),
       topPumpPct,
       daysMap,
       dailyAvg,
       avgPerDose,
       busiestDay,
-      busiestDayMl,
+      busiestDayMl: Number(busiestDayMl.toFixed(1)),
       successCount,
       delayedCount,
       errorCount,
       successRate,
     };
-  }, [filteredAndSortedLogs]);
+  }, [filteredAndSortedLogs, pumpSettings]);
 
-  // GitHub Katkı Haritası İçin 21 Günlük Mikro Kare Matris Verisi
+  // GitHub Katkı Haritası İçin 21 Günlük Mikro Kare Matris Verisi - EN GÜNCEL GÜN EN SOLDA
   const heatmapGridDays = useMemo(() => {
     const days: { dateKey: string; dayNum: string; dayLabel: string; pumps: { [pId: number]: number } }[] = [];
     const today = new Date();
 
-    for (let i = 20; i >= 0; i--) {
+    for (let i = 0; i < 21; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateKey = getDateKey(d);
       const dayNum = String(d.getDate()).padStart(2, "0");
       const monthShort = d.toLocaleDateString("tr-TR", { month: "short" }).replace(".", "");
-      const dayLabel = `${dayNum} ${monthShort}`;
+      const dayLabel = i === 0 ? "Bugün" : i === 1 ? "Dün" : `${dayNum} ${monthShort}`;
       days.push({
         dateKey,
-        dayNum,
+        dayNum: i === 0 ? "Bugün" : dayNum,
         dayLabel,
         pumps: { 1: 0, 2: 0, 3: 0, 4: 0 },
       });
@@ -585,13 +586,13 @@ export default function DosingLogsTab({
       if (gridMap[dateKey]) {
         const pId = Number(log.pump_id);
         if (gridMap[dateKey].pumps[pId] !== undefined) {
-          gridMap[dateKey].pumps[pId] += Number(log.ml_amount) || 0;
+          gridMap[dateKey].pumps[pId] += getLogEffectiveMl(log, pumpSettings);
         }
       }
     });
 
     return days;
-  }, [filteredAndSortedLogs]);
+  }, [filteredAndSortedLogs, pumpSettings]);
 
   // CSV Dışa Aktarma Handler'ı
   const handleExportCSV = () => {
@@ -603,7 +604,8 @@ export default function DosingLogsTab({
         const dateStr = parseLogDate(l.created_at).toLocaleString("tr-TR");
         const statusStr = l.status || "Başarılı";
         const sourceStr = l.source || (l.mode === "Manuel" ? "Kullanıcı" : "Program");
-        return `"${dateStr}","${setting.label}","Kanal ${l.pump_id}","${l.ml_amount} ml","~${l.duration_seconds} sn","${l.mode || "Zamanlayıcı"}","${sourceStr}","${statusStr}"`;
+        const effectiveMl = getLogEffectiveMl(l, pumpSettings);
+        return `"${dateStr}","${setting.label}","Kanal ${l.pump_id}","${effectiveMl} ml","~${l.duration_seconds} sn","${l.mode || "Zamanlayıcı"}","${sourceStr}","${statusStr}"`;
       })
       .join("\n");
 
@@ -902,7 +904,7 @@ export default function DosingLogsTab({
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sol (2 Kolon): Günlük Dozaj Miktarı (ml) Grafiği / Isı Haritası */}
-        <div className="lg:col-span-2 glass-panel rounded-3xl p-6 border border-cyan-500/20 shadow-xl space-y-4">
+        <div className="lg:col-span-2 glass-panel rounded-3xl p-4 sm:p-6 border border-cyan-500/20 shadow-xl space-y-4 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2 font-mono">
@@ -980,7 +982,7 @@ export default function DosingLogsTab({
               );
 
               return (
-                <div className="h-64 pt-6 pb-2 px-2 flex flex-col justify-between font-mono relative select-none animate-in fade-in duration-300">
+                <div className="h-64 pt-6 pb-2 px-1 sm:px-2 flex flex-col justify-between font-mono relative select-none overflow-hidden animate-in fade-in duration-300">
                   {/* Arka Plan Y-Ekseni Izgara Çizgileri & Değer Etiketleri */}
                   <div className="absolute inset-x-2 top-8 bottom-8 flex flex-col justify-between pointer-events-none opacity-25">
                     <div className="border-b border-slate-700 w-full flex justify-between items-center text-[9px] text-slate-400 font-mono">
@@ -996,7 +998,7 @@ export default function DosingLogsTab({
                   </div>
 
                   {/* Gün Sütunları Yerleşimi */}
-                  <div className="h-48 flex items-end justify-between gap-2.5 z-10 px-2">
+                  <div className="h-48 flex items-end justify-between gap-1 sm:gap-2.5 z-10 px-0.5 sm:px-2 w-full">
                     {daysEntries.map(([dateKey, dayData]) => {
                       const dayTotal = Object.values(dayData.pumps).reduce((a, b) => a + b, 0);
                       const isHovered = hoveredBarDay === dateKey;
@@ -1006,21 +1008,21 @@ export default function DosingLogsTab({
                           key={dateKey}
                           onMouseEnter={() => setHoveredBarDay(dateKey)}
                           onMouseLeave={() => setHoveredBarDay(null)}
-                          className={`flex-1 flex flex-col items-center justify-end h-full group relative transition-all duration-200 p-1.5 rounded-2xl ${
+                          className={`flex-1 min-w-0 flex flex-col items-center justify-end h-full group relative transition-all duration-200 p-0.5 sm:p-1.5 rounded-2xl ${
                             isHovered ? "bg-slate-900/60 shadow-lg shadow-cyan-950/40 scale-[1.02]" : ""
                           }`}
                         >
                           {/* Günlük Toplam Miktar Rozeti (Üstte Süzülen Parlak Rozet) */}
                           <div className="h-5 flex items-center justify-center">
                             {dayTotal > 0 && (
-                              <span className="text-[10px] font-mono font-black text-cyan-300 bg-cyan-950/90 px-2.5 py-0.5 rounded-full border border-cyan-500/50 shadow-md shadow-cyan-950/60 animate-in zoom-in-95">
+                              <span className="text-[9px] sm:text-[10px] font-mono font-black text-cyan-300 bg-cyan-950/90 px-1.5 sm:px-2.5 py-0.5 rounded-full border border-cyan-500/50 shadow-md shadow-cyan-950/60 animate-in zoom-in-95 truncate">
                                 {Number(dayTotal.toFixed(1))} ml
                               </span>
                             )}
                           </div>
 
                           {/* 4 Adet İnce Şık Parlak Pompa Kapsülü */}
-                          <div className="w-full flex items-end justify-center gap-1.5 h-36 relative px-1">
+                          <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1.5 h-36 relative px-0.5 sm:px-1">
                             {[1, 2, 3, 4].map((pId) => {
                               const amount = dayData.pumps[pId] || 0;
                               const setting = pumpSettings[pId] || { label: `Pompa ${pId}`, color: "cyan" };
@@ -1028,10 +1030,10 @@ export default function DosingLogsTab({
                               const heightPct = amount > 0 ? Math.min(100, Math.max(12, Math.round((amount / maxSinglePumpDose) * 100))) : 0;
 
                               return (
-                                <div key={pId} className="flex-1 max-w-[10px] flex flex-col items-center justify-end h-full group/bar relative">
+                                <div key={pId} className="flex-1 max-w-[6px] sm:max-w-[10px] flex flex-col items-center justify-end h-full group/bar relative">
                                   {/* İnteraktif Hover Tooltip Popover */}
                                   {amount > 0 && (
-                                    <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-10 z-30 bg-slate-950 border border-cyan-500/60 px-2.5 py-1 rounded-xl text-[10px] font-mono text-white pointer-events-none transition-all shadow-2xl whitespace-nowrap">
+                                    <div className="opacity-0 group-hover/bar:opacity-100 absolute -top-10 left-1/2 -translate-x-1/2 z-30 bg-slate-950/95 border border-cyan-500/60 px-2 py-0.5 rounded-xl text-[10px] font-mono text-white pointer-events-none transition-all shadow-2xl whitespace-nowrap">
                                       <span className={theme.text}>{setting.label}: </span>
                                       <span className="font-bold text-white">{Number(amount.toFixed(1))} ml</span>
                                     </div>
@@ -1051,7 +1053,7 @@ export default function DosingLogsTab({
                           </div>
 
                           {/* Gün İsmi Etiketi (Altta) */}
-                          <span className={`text-[10px] font-mono transition-colors mt-2 ${
+                          <span className={`text-[9px] sm:text-[10px] font-mono transition-colors mt-2 truncate w-full text-center ${
                             isHovered ? "text-cyan-300 font-bold" : "text-slate-400 font-semibold"
                           }`}>
                             {dayData.label}
@@ -1163,8 +1165,8 @@ export default function DosingLogsTab({
             const maxVal = Math.max(15, ...daysEntries.flatMap(([_, d]) => Object.values(d.pumps)));
 
             return (
-              <div className="h-64 pt-4 px-2 relative flex flex-col justify-between font-mono">
-                <svg viewBox="0 0 500 180" className="w-full h-48 overflow-visible">
+              <div className="h-64 pt-4 px-1 sm:px-2 relative flex flex-col justify-between font-mono overflow-hidden">
+                <svg viewBox="0 0 520 180" className="w-full h-48 overflow-hidden rounded-xl">
                   <defs>
                     {[1, 2, 3, 4].map((pId) => {
                       const setting = pumpSettings[pId] || { color: "cyan" };
@@ -1180,7 +1182,7 @@ export default function DosingLogsTab({
 
                   {/* Arka Plan Yatay Izgara Çizgileri */}
                   {[0, 45, 90, 135].map((y) => (
-                    <line key={y} x1="30" y1={y + 10} x2="480" y2={y + 10} stroke="#1e293b" strokeDasharray="3 3" />
+                    <line key={y} x1="20" y1={y + 10} x2="500" y2={y + 10} stroke="#1e293b" strokeDasharray="3 3" />
                   ))}
 
                   {/* Her Pompa İçin Akıcı Yumuşak Trend Eğrisi Çizimi */}
@@ -1190,7 +1192,7 @@ export default function DosingLogsTab({
 
                     const points = daysEntries.map(([_, dayData], idx) => {
                       const amount = dayData.pumps[pId] || 0;
-                      const x = 50 + idx * 70;
+                      const x = 40 + idx * 73;
                       const y = 145 - (amount / maxVal) * 125;
                       return { x, y, amount };
                     });
@@ -1218,7 +1220,7 @@ export default function DosingLogsTab({
                             <circle
                               cx={pt.x}
                               cy={pt.y}
-                              r="4.5"
+                              r="4"
                               fill={theme.hex}
                               stroke="#090d16"
                               strokeWidth="2"
@@ -1245,9 +1247,9 @@ export default function DosingLogsTab({
                 </svg>
 
                 {/* X-Ekseni Gün Etiketleri */}
-                <div className="flex justify-between px-6 text-[10px] text-slate-400 font-semibold border-t border-slate-800/80 pt-1">
+                <div className="flex justify-between px-2 sm:px-6 text-[10px] text-slate-400 font-semibold border-t border-slate-800/80 pt-1">
                   {daysEntries.map(([dateKey, dayData]) => (
-                    <span key={dateKey}>{dayData.label}</span>
+                    <span key={dateKey} className="truncate max-w-[45px] sm:max-w-none text-center">{dayData.label}</span>
                   ))}
                 </div>
               </div>
@@ -1481,7 +1483,7 @@ export default function DosingLogsTab({
 
                         {/* Miktar */}
                         <td className="py-3 font-bold text-white">
-                          {log.ml_amount} ml
+                          {getLogEffectiveMl(log, pumpSettings)} ml
                         </td>
 
                         {/* Süre */}

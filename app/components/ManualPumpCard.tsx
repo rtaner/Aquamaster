@@ -19,6 +19,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { PumpSetting, ActiveDosingState, DosingLog } from "@/types/aquamaster";
+import { getLogEffectiveMl } from "@/lib/timeUtils";
 import BottleVisualizer from "./BottleVisualizer";
 import RadialProgress from "./RadialProgress";
 
@@ -116,11 +117,12 @@ export default function ManualPumpCard({
   if (lastLog && lastLog.created_at) {
     const diffMs = new Date().getTime() - new Date(lastLog.created_at).getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    if (diffMins < 1) lastDosedText = `${lastLog.ml_amount} ml (Az önce)`;
-    else if (diffMins < 60) lastDosedText = `${lastLog.ml_amount} ml (${diffMins} dk önce)`;
+    const logMl = getLogEffectiveMl(lastLog, { [setting.pump_id]: setting });
+    if (diffMins < 1) lastDosedText = `${logMl} ml (Az önce)`;
+    else if (diffMins < 60) lastDosedText = `${logMl} ml (${diffMins} dk önce)`;
     else {
       const diffHours = Math.floor(diffMins / 60);
-      lastDosedText = `${lastLog.ml_amount} ml (${diffHours} saat önce)`;
+      lastDosedText = `${logMl} ml (${diffHours} saat önce)`;
     }
   }
 

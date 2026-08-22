@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 
 import { PumpSetting, DosingLog, TuyaStripDeviceState, TuyaDeviceState, TuyaSocketSchedule, WaterQualityLog, ScheduleItem } from "@/types/aquamaster";
-import { formatCompactDuration } from "@/lib/timeUtils";
+import { formatCompactDuration, getLogEffectiveMl } from "@/lib/timeUtils";
 
 
 
@@ -261,16 +261,17 @@ export default function DashboardTab({
           const logD = new Date(lastLog.created_at);
           const isToday = logD.toDateString() === now.toDateString();
           const timeStr = logD.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+          const logMl = getLogEffectiveMl(lastLog, pumpSettings);
           if (isToday) {
             isDosedToday = true;
-            lastDoseText = `Bugün ${timeStr} (${lastLog.ml_amount} ml)`;
+            lastDoseText = `Bugün ${timeStr} (${logMl} ml)`;
           } else {
             const isYesterday = new Date(now.getTime() - 86400000).toDateString() === logD.toDateString();
             if (isYesterday) {
-              lastDoseText = `Dün ${timeStr} (${lastLog.ml_amount} ml)`;
+              lastDoseText = `Dün ${timeStr} (${logMl} ml)`;
             } else {
               const dateStr = logD.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
-              lastDoseText = `${dateStr} ${timeStr} (${lastLog.ml_amount} ml)`;
+              lastDoseText = `${dateStr} ${timeStr} (${logMl} ml)`;
             }
           }
         }
