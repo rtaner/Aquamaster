@@ -71,6 +71,7 @@ export default function DashboardTab({
   tuyaSchedules,
   schedules = [],
   pumpSettings,
+  dosingLogs = [],
   onNavigateTab,
   onToggleFilter,
   onStartMaintenance,
@@ -211,9 +212,9 @@ export default function DashboardTab({
     if (!schedules || schedules.length === 0) {
       // Şablon Varsayılan Programlar (Eğer henüz veritabanında program tanımlanmamışsa)
       return [
-        { id: 1, pumpId: 1, name: pumpSettings[1]?.label || "Potasyum", ml: "2.5 ml", time: "22:00", isActive: true, color: colors[0] },
-        { id: 2, pumpId: 2, name: pumpSettings[2]?.label || "Mikro", ml: "1.5 ml", time: "21:00", isActive: true, color: colors[1] },
-        { id: 3, pumpId: 3, name: pumpSettings[3]?.label || "Karbon", ml: "1.0 ml", time: "20:00", isActive: true, color: colors[2] },
+        { id: 1, pumpId: 1, name: pumpSettings[1]?.label || "Potasyum", ml: "2.5 ml", time: "22:00", isActive: true, color: colors[0], lastDoseText: "Henüz yapılmadı", isDosedToday: false },
+        { id: 2, pumpId: 2, name: pumpSettings[2]?.label || "Mikro", ml: "1.5 ml", time: "21:00", isActive: true, color: colors[1], lastDoseText: "Henüz yapılmadı", isDosedToday: false },
+        { id: 3, pumpId: 3, name: pumpSettings[3]?.label || "Karbon", ml: "1.0 ml", time: "20:00", isActive: true, color: colors[2], lastDoseText: "Henüz yapılmadı", isDosedToday: false },
       ];
     }
 
